@@ -129,17 +129,28 @@ if selected_countries and st.session_state.headcount_data is not None:
     # Filter data for selected countries and years
     headcount_data = st.session_state.headcount_data
 
-    # Filter by countries and years
+    # Filter by countries and years, and exclude "Overall" area
     filtered_data = headcount_data[
         (headcount_data['country'].isin(selected_countries)) &
         (headcount_data['year'] >= start_year) &
-        (headcount_data['year'] <= end_year)
+        (headcount_data['year'] <= end_year) &
+        (headcount_data['area'] != 'Overall')
     ]
 
     st.subheader("Headcount Data (Filtered)")
     st.write(f"Total rows: {len(filtered_data):,}")
-    st.dataframe(filtered_data.head(100))
-    st.caption(f"Showing first 100 of {len(filtered_data):,} rows")
+    st.write(f"Countries included: {', '.join(selected_countries)}")
+    st.dataframe(filtered_data.head(200), height=400)
+    st.caption(f"Showing first 200 of {len(filtered_data):,} rows (preview only - download to see all data)")
+
+    # Download headcount data
+    csv_headcount = filtered_data.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Complete Headcount Data as CSV",
+        data=csv_headcount,
+        file_name=f"headcount_data_{start_year}_{end_year}.csv",
+        mime="text/csv",
+    )
 
     # Summary statistics
     with st.expander("View Summary Statistics"):
@@ -184,17 +195,19 @@ if selected_countries and st.session_state.headcount_data is not None:
             output_df = final_output[['iso3', 'country', 'region', 'area', 'fuel', 'year',
                                      'fuel_tons_lower95', 'fuel_tons_median', 'fuel_tons_upper95']].copy()
 
-            # AGGREGATE TABLE: Total Annual Fuel Use Per Year Per Country
+            # AGGREGATE TABLE: Total Annual Fuel Use Per Year Per Country Per Area
             st.subheader("📊 Total Annual Fuel Use Per Year Per Country")
-            aggregate_by_country_year = output_df.groupby(['country', 'year', 'fuel']).agg({
+
+            # Aggregate by country, year, area, and fuel (sum across all fuel types for each area)
+            aggregate_table = output_df.groupby(['country', 'year', 'area', 'fuel']).agg({
                 'fuel_tons_lower95': 'sum',
                 'fuel_tons_median': 'sum',
                 'fuel_tons_upper95': 'sum'
             }).reset_index()
 
-            # Pivot for better display
-            pivot_table = aggregate_by_country_year.pivot_table(
-                index=['country', 'year'],
+            # Pivot to get fuel types as columns, keeping area as a regular column
+            pivot_table = aggregate_table.pivot_table(
+                index=['country', 'year', 'area'],
                 columns='fuel',
                 values='fuel_tons_median',
                 aggfunc='sum'
@@ -202,14 +215,14 @@ if selected_countries and st.session_state.headcount_data is not None:
 
             st.write(f"Total rows: {len(pivot_table):,}")
             st.dataframe(pivot_table, height=400)
-            st.caption("Showing median fuel consumption in tons, aggregated by country and year")
+            st.caption("Showing median fuel consumption in tons by country, year, and area (Urban/Rural)")
 
             # Download aggregate table
-            csv_agg = pivot_table.to_csv(index=False).encode('utf-8')
+            csv_aggregate = pivot_table.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Download Aggregate Table as CSV",
-                data=csv_agg,
-                file_name=f"fuel_consumption_by_country_year_{start_year}_{end_year}.csv",
+                label="📥 Download Fuel Consumption Table as CSV",
+                data=csv_aggregate,
+                file_name=f"fuel_consumption_by_area_{start_year}_{end_year}.csv",
                 mime="text/csv",
             )
 
@@ -250,9 +263,9 @@ if selected_countries and st.session_state.headcount_data is not None:
             with col2:
                 buffer = BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    pivot_table.to_excel(writer, index=False, sheet_name='Fuel Consumption Summary')
+                    aggregate_table.to_excel(writer, index=False, sheet_name='By Country Year Area Fuel')
                     output_df.to_excel(writer, index=False, sheet_name='Detailed Data')
-                    aggregate_by_country_year.to_excel(writer, index=False, sheet_name='By Country Year Fuel')
-                    pivot_table.to_excel(writer, index=False, sheet_name='Pivot Table')
                 buffer.seek(0)
 
                 st.download_button(

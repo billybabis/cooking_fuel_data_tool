@@ -189,6 +189,7 @@ start_year, end_year = year_range
 
 # Sidebar: Step 2 - Customize Proportional Fuel-Use Data
 st.sidebar.header("Customize Proportional Fuel-Use Data")
+st.sidebar.caption("OPTIONAL")
 
 # Option A: Upload full custom dataset
 with st.sidebar.expander("📤 Option A: Upload Custom Dataset", expanded=False):
@@ -243,6 +244,8 @@ if end_year > 2025:
                 st.rerun()
 
 st.sidebar.header("Per Capita Fuel Consumption")
+st.sidebar.caption("OPTIONAL")
+
 # Load default per capita data if not already loaded
 if st.session_state.per_capita_data is None:
     default_per_capita = load_default_per_capita_data()
@@ -647,10 +650,10 @@ if end_year > 2025 and 'show_projection_modal' in st.session_state and st.sessio
             help="Choose the year for which you want to enter custom values"
         )
 
-        st.markdown(f"**All years will be scaled proportionally based on the ratio between your custom values and the default values for {selected_custom_year}**")
-        st.info("ℹ️ Example: If you change a value from 30% to 60% (2× increase), all years for that fuel/area will be doubled.")
+        st.markdown(f"All years will be **scaled proportionally** based on your custom values for {selected_custom_year}.")
+        st.caption("Example: Changing a value from 30% to 60% (2× increase) will double all years for that fuel/area combination.")
 
-        st.warning("⚠️ **Important Data Quality Notice**: Custom projections should be based on robust data supported by peer-reviewed academic literature, official government statistics, or reputable international organizations. Unsupported assumptions may lead to unreliable results.")
+        st.warning("⚠️ **Data Quality Notice**: Custom projections should be based on robust data supported by peer-reviewed literature, official statistics, or reputable organizations.")
 
         # Generate template based on selected countries, fuels, and areas
         if selected_countries and selected_fuels and selected_areas:
@@ -674,10 +677,11 @@ if end_year > 2025 and 'show_projection_modal' in st.session_state and st.sessio
             template_df = baseline_custom_year.copy()
             template_df['percent_median'] = template_df['percent_median'].round(2)
 
-            st.info(f"📋 You must provide values for all {len(template_df)} combinations below.")
+            st.markdown("---")
+            st.markdown(f"**{len(template_df)} combinations** found for your selected countries, fuels, and areas.")
 
             # Two input options: Data Editor or CSV Upload
-            input_method = st.radio("Input Method", ["Data Editor", "Upload CSV"], horizontal=True)
+            input_method = st.radio("Choose input method:", ["Data Editor", "Upload CSV"], horizontal=True)
 
             if input_method == "Data Editor":
                 st.markdown("Edit the percentage values in the table below:")
@@ -702,9 +706,9 @@ if end_year > 2025 and 'show_projection_modal' in st.session_state and st.sessio
 
                 # Source citation input
                 st.markdown("---")
-                st.markdown("### 📚 Data Source Citation")
+                st.markdown("**📚 Data Source Citation (Required)**")
                 data_source_citation = st.text_area(
-                    "Provide a citation for your custom data:",
+                    "Provide citation for your custom data:",
                     placeholder="e.g., Smith et al. (2024). 'Cooking Fuel Projections for Sub-Saharan Africa.' Energy Policy Journal. DOI: 10.xxxx/xxxxx",
                     help="Include author, year, title, publication, and DOI/URL if available",
                     height=100,
@@ -778,9 +782,9 @@ if end_year > 2025 and 'show_projection_modal' in st.session_state and st.sessio
 
                                 # Source citation input
                                 st.markdown("---")
-                                st.markdown("### 📚 Data Source Citation")
+                                st.markdown("**📚 Data Source Citation (Required)**")
                                 csv_data_source_citation = st.text_area(
-                                    "Provide a citation for your custom data:",
+                                    "Provide citation for your custom data:",
                                     placeholder="e.g., Smith et al. (2024). 'Cooking Fuel Projections for Sub-Saharan Africa.' Energy Policy Journal. DOI: 10.xxxx/xxxxx",
                                     help="Include author, year, title, publication, and DOI/URL if available",
                                     height=100,

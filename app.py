@@ -144,8 +144,13 @@ selected_countries = st.sidebar.multiselect(
     default=[]
 )
 
-# Get available fuel types from data
-available_fuels = sorted(st.session_state.population_share_per_fuel_df['fuel'].unique()) if st.session_state.population_share_per_fuel_df is not None else []
+# Get available fuel types from data, excluding category totals
+if st.session_state.population_share_per_fuel_df is not None:
+    all_fuels = st.session_state.population_share_per_fuel_df['fuel'].unique()
+    # Filter out Total Clean and Total Polluting categories
+    available_fuels = sorted([f for f in all_fuels if f not in ['Total Clean', 'Total Polluting']])
+else:
+    available_fuels = []
 
 # Fuel type selection with compact checkbox format
 with st.sidebar.expander("🔥 Fuel Types (click to filter)", expanded=False):
@@ -695,10 +700,10 @@ if end_year > 2025 and 'show_projection_modal' in st.session_state and st.sessio
                     column_config={
                         "percent_median": st.column_config.NumberColumn(
                             f"Percent for {selected_custom_year}",
-                            help="Enter percentage value (0-100)",
+                            help="Enter percentage value (0-1)",
                             min_value=0.0,
-                            max_value=100.0,
-                            step=0.1,
+                            max_value=1.0,
+                            step=0.01,
                             format="%.2f"
                         )
                     }

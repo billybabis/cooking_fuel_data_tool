@@ -1,249 +1,249 @@
-Country or Area,M49 code,iso3
-Afghanistan,4,AFG
-�land Islands,248,ALA
-Albania,8,ALB
-Algeria,12,DZA
-American Samoa,16,ASM
-Andorra,20,AND
-Angola,24,AGO
-Anguilla,660,AIA
-Antarctica,10,ATA
-Antigua and Barbuda,28,ATG
-Argentina,32,ARG
-Armenia,51,ARM
-Aruba,533,ABW
-Australia,36,AUS
-Austria,40,AUT
-Azerbaijan,31,AZE
-Bahamas,44,BHS
-Bahrain,48,BHR
-Bangladesh,50,BGD
-Barbados,52,BRB
-Belarus,112,BLR
-Belgium,56,BEL
-Belize,84,BLZ
-Benin,204,BEN
-Bermuda,60,BMU
-Bhutan,64,BTN
-Bolivia (Plurinational State of),68,BOL
-"Bonaire, Sint Eustatius and Saba",535,BES
-Bosnia and Herzegovina,70,BIH
-Botswana,72,BWA
-Bouvet Island,74,BVT
-Brazil,76,BRA
-British Indian Ocean Territory,86,IOT
-British Virgin Islands,92,VGB
-Brunei Darussalam,96,BRN
-Bulgaria,100,BGR
-Burkina Faso,854,BFA
-Burundi,108,BDI
-Cabo Verde,132,CPV
-Cambodia,116,KHM
-Cameroon,120,CMR
-Canada,124,CAN
-Cayman Islands,136,CYM
-Central African Republic,140,CAF
-Chad,148,TCD
-Chile,152,CHL
-China,156,CHN
-"China, Hong Kong Special Administrative Region",344,HKG
-"China, Macao Special Administrative Region",446,MAC
-Christmas Island,162,CXR
-Cocos (Keeling) Islands,166,CCK
-Colombia,170,COL
-Comoros,174,COM
-Congo,178,COG
-Cook Islands,184,COK
-Costa Rica,188,CRI
-C�te d�Ivoire,384,CIV
-Croatia,191,HRV
-Cuba,192,CUB
-Cura�ao,531,CUW
-Cyprus,196,CYP
-Czechia,203,CZE
-Democratic People's Republic of Korea,408,PRK
-Democratic Republic of the Congo,180,COD
-Denmark,208,DNK
-Djibouti,262,DJI
-Dominica,212,DMA
-Dominican Republic,214,DOM
-Ecuador,218,ECU
-Egypt,818,EGY
-El Salvador,222,SLV
-Equatorial Guinea,226,GNQ
-Eritrea,232,ERI
-Estonia,233,EST
-Eswatini,748,SWZ
-Ethiopia,231,ETH
-Falkland Islands (Malvinas),238,FLK
-Faroe Islands,234,FRO
-Fiji,242,FJI
-Finland,246,FIN
-France,250,FRA
-French Guiana,254,GUF
-French Polynesia,258,PYF
-French Southern Territories,260,ATF
-Gabon,266,GAB
-Gambia,270,GMB
-Georgia,268,GEO
-Germany,276,DEU
-Ghana,288,GHA
-Gibraltar,292,GIB
-Greece,300,GRC
-Greenland,304,GRL
-Grenada,308,GRD
-Guadeloupe,312,GLP
-Guam,316,GUM
-Guatemala,320,GTM
-Guernsey,831,GGY
-Guinea,324,GIN
-Guinea-Bissau,624,GNB
-Guyana,328,GUY
-Haiti,332,HTI
-Heard Island and McDonald Islands,334,HMD
-Holy See,336,VAT
-Honduras,340,HND
-Hungary,348,HUN
-Iceland,352,ISL
-India,356,IND
-Indonesia,360,IDN
-Iran (Islamic Republic of),364,IRN
-Iraq,368,IRQ
-Ireland,372,IRL
-Isle of Man,833,IMN
-Israel,376,ISR
-Italy,380,ITA
-Jamaica,388,JAM
-Japan,392,JPN
-Jersey,832,JEY
-Jordan,400,JOR
-Kazakhstan,398,KAZ
-Kenya,404,KEN
-Kiribati,296,KIR
-Kuwait,414,KWT
-Kyrgyzstan,417,KGZ
-Lao People's Democratic Republic,418,LAO
-Latvia,428,LVA
-Lebanon,422,LBN
-Lesotho,426,LSO
-Liberia,430,LBR
-Libya,434,LBY
-Liechtenstein,438,LIE
-Lithuania,440,LTU
-Luxembourg,442,LUX
-Madagascar,450,MDG
-Malawi,454,MWI
-Malaysia,458,MYS
-Maldives,462,MDV
-Mali,466,MLI
-Malta,470,MLT
-Marshall Islands,584,MHL
-Martinique,474,MTQ
-Mauritania,478,MRT
-Mauritius,480,MUS
-Mayotte,175,MYT
-Mexico,484,MEX
-Micronesia (Federated States of),583,FSM
-Monaco,492,MCO
-Mongolia,496,MNG
-Montenegro,499,MNE
-Montserrat,500,MSR
-Morocco,504,MAR
-Mozambique,508,MOZ
-Myanmar,104,MMR
-Namibia,516,NAM
-Nauru,520,NRU
-Nepal,524,NPL
-Netherlands (Kingdom of the),528,NLD
-New Caledonia,540,NCL
-New Zealand,554,NZL
-Nicaragua,558,NIC
-Niger,562,NER
-Nigeria,566,NGA
-Niue,570,NIU
-Norfolk Island,574,NFK
-North Macedonia,807,MKD
-Northern Mariana Islands,580,MNP
-Norway,578,NOR
-Oman,512,OMN
-Pakistan,586,PAK
-Palau,585,PLW
-Panama,591,PAN
-Papua New Guinea,598,PNG
-Paraguay,600,PRY
-Peru,604,PER
-Philippines,608,PHL
-Pitcairn,612,PCN
-Poland,616,POL
-Portugal,620,PRT
-Puerto Rico,630,PRI
-Qatar,634,QAT
-Republic of Korea,410,KOR
-Republic of Moldova,498,MDA
-R�union,638,REU
-Romania,642,ROU
-Russian Federation,643,RUS
-Rwanda,646,RWA
-Saint Barth�lemy,652,BLM
-Saint Helena,654,SHN
-Saint Kitts and Nevis,659,KNA
-Saint Lucia,662,LCA
-Saint Martin (French Part),663,MAF
-Saint Pierre and Miquelon,666,SPM
-Saint Vincent and the Grenadines,670,VCT
-Samoa,882,WSM
-San Marino,674,SMR
-Sao Tome and Principe,678,STP
-Saudi Arabia,682,SAU
-Senegal,686,SEN
-Serbia,688,SRB
-Seychelles,690,SYC
-Sierra Leone,694,SLE
-Singapore,702,SGP
-Sint Maarten (Dutch part),534,SXM
-Slovakia,703,SVK
-Slovenia,705,SVN
-Solomon Islands,90,SLB
-Somalia,706,SOM
-South Africa,710,ZAF
-South Georgia and the South Sandwich Islands,239,SGS
-South Sudan,728,SSD
-Spain,724,ESP
-Sri Lanka,144,LKA
-State of Palestine,275,PSE
-Sudan,729,SDN
-Suriname,740,SUR
-Svalbard and Jan Mayen Islands,744,SJM
-Sweden,752,SWE
-Switzerland,756,CHE
-Syrian Arab Republic,760,SYR
-Tajikistan,762,TJK
-Thailand,764,THA
-Timor-Leste,626,TLS
-Togo,768,TGO
-Tokelau,772,TKL
-Tonga,776,TON
-Trinidad and Tobago,780,TTO
-Tunisia,788,TUN
-T�rkiye,792,TUR
-Turkmenistan,795,TKM
-Turks and Caicos Islands,796,TCA
-Tuvalu,798,TUV
-Uganda,800,UGA
-Ukraine,804,UKR
-United Arab Emirates,784,ARE
-United Kingdom of Great Britain and Northern Ireland,826,GBR
-United Republic of Tanzania,834,TZA
-United States Minor Outlying Islands,581,UMI
-United States of America,840,USA
-United States Virgin Islands,850,VIR
-Uruguay,858,URY
-Uzbekistan,860,UZB
-Vanuatu,548,VUT
-Venezuela (Bolivarian Republic of),862,VEN
-Viet Nam,704,VNM
-Wallis and Futuna Islands,876,WLF
-Western Sahara,732,ESH
-Yemen,887,YEM
-Zambia,894,ZMB
-Zimbabwe,716,ZWE
+Country or Area,M49 code,iso3,region
+Afghanistan,4,AFG,south_asia
+Åland Islands,248,ALA,other
+Albania,8,ALB,other
+Algeria,12,DZA,other
+American Samoa,16,ASM,other
+Andorra,20,AND,other
+Angola,24,AGO,ssa
+Anguilla,660,AIA,other
+Antarctica,10,ATA,other
+Antigua and Barbuda,28,ATG,other
+Argentina,32,ARG,latam
+Armenia,51,ARM,other
+Aruba,533,ABW,other
+Australia,36,AUS,other
+Austria,40,AUT,other
+Azerbaijan,31,AZE,other
+Bahamas,44,BHS,other
+Bahrain,48,BHR,other
+Bangladesh,50,BGD,south_asia
+Barbados,52,BRB,other
+Belarus,112,BLR,other
+Belgium,56,BEL,other
+Belize,84,BLZ,latam
+Benin,204,BEN,ssa
+Bermuda,60,BMU,other
+Bhutan,64,BTN,south_asia
+Bolivia (Plurinational State of),68,BOL,latam
+"Bonaire, Sint Eustatius and Saba",535,BES,other
+Bosnia and Herzegovina,70,BIH,other
+Botswana,72,BWA,ssa
+Bouvet Island,74,BVT,other
+Brazil,76,BRA,latam
+British Indian Ocean Territory,86,IOT,other
+British Virgin Islands,92,VGB,other
+Brunei Darussalam,96,BRN,other
+Bulgaria,100,BGR,other
+Burkina Faso,854,BFA,ssa
+Burundi,108,BDI,ssa
+Cabo Verde,132,CPV,ssa
+Cambodia,116,KHM,other
+Cameroon,120,CMR,ssa
+Canada,124,CAN,other
+Cayman Islands,136,CYM,other
+Central African Republic,140,CAF,ssa
+Chad,148,TCD,ssa
+Chile,152,CHL,latam
+China,156,CHN,east_asia
+"China, Hong Kong Special Administrative Region",344,HKG,other
+"China, Macao Special Administrative Region",446,MAC,other
+Christmas Island,162,CXR,other
+Cocos (Keeling) Islands,166,CCK,other
+Colombia,170,COL,latam
+Comoros,174,COM,ssa
+Congo,178,COG,ssa
+Cook Islands,184,COK,other
+Costa Rica,188,CRI,latam
+Côte d'Ivoire,384,CIV,ssa
+Croatia,191,HRV,other
+Cuba,192,CUB,latam
+Curaçao,531,CUW,other
+Cyprus,196,CYP,other
+Czechia,203,CZE,other
+Democratic People's Republic of Korea,408,PRK,east_asia
+Democratic Republic of the Congo,180,COD,ssa
+Denmark,208,DNK,other
+Djibouti,262,DJI,ssa
+Dominica,212,DMA,other
+Dominican Republic,214,DOM,latam
+Ecuador,218,ECU,latam
+Egypt,818,EGY,other
+El Salvador,222,SLV,latam
+Equatorial Guinea,226,GNQ,ssa
+Eritrea,232,ERI,ssa
+Estonia,233,EST,other
+Eswatini,748,SWZ,ssa
+Ethiopia,231,ETH,ssa
+Falkland Islands (Malvinas),238,FLK,other
+Faroe Islands,234,FRO,other
+Fiji,242,FJI,other
+Finland,246,FIN,other
+France,250,FRA,other
+French Guiana,254,GUF,other
+French Polynesia,258,PYF,other
+French Southern Territories,260,ATF,other
+Gabon,266,GAB,ssa
+Gambia,270,GMB,ssa
+Georgia,268,GEO,other
+Germany,276,DEU,other
+Ghana,288,GHA,ssa
+Gibraltar,292,GIB,other
+Greece,300,GRC,other
+Greenland,304,GRL,other
+Grenada,308,GRD,other
+Guadeloupe,312,GLP,other
+Guam,316,GUM,other
+Guatemala,320,GTM,latam
+Guernsey,831,GGY,other
+Guinea,324,GIN,ssa
+Guinea-Bissau,624,GNB,ssa
+Guyana,328,GUY,latam
+Haiti,332,HTI,latam
+Heard Island and McDonald Islands,334,HMD,other
+Holy See,336,VAT,other
+Honduras,340,HND,latam
+Hungary,348,HUN,other
+Iceland,352,ISL,other
+India,356,IND,south_asia
+Indonesia,360,IDN,other
+Iran (Islamic Republic of),364,IRN,other
+Iraq,368,IRQ,other
+Ireland,372,IRL,other
+Isle of Man,833,IMN,other
+Israel,376,ISR,other
+Italy,380,ITA,other
+Jamaica,388,JAM,latam
+Japan,392,JPN,east_asia
+Jersey,832,JEY,other
+Jordan,400,JOR,other
+Kazakhstan,398,KAZ,other
+Kenya,404,KEN,ssa
+Kiribati,296,KIR,other
+Kuwait,414,KWT,other
+Kyrgyzstan,417,KGZ,other
+Lao People's Democratic Republic,418,LAO,other
+Latvia,428,LVA,other
+Lebanon,422,LBN,other
+Lesotho,426,LSO,ssa
+Liberia,430,LBR,ssa
+Libya,434,LBY,other
+Liechtenstein,438,LIE,other
+Lithuania,440,LTU,other
+Luxembourg,442,LUX,other
+Madagascar,450,MDG,ssa
+Malawi,454,MWI,ssa
+Malaysia,458,MYS,other
+Maldives,462,MDV,south_asia
+Mali,466,MLI,ssa
+Malta,470,MLT,other
+Marshall Islands,584,MHL,other
+Martinique,474,MTQ,other
+Mauritania,478,MRT,ssa
+Mauritius,480,MUS,ssa
+Mayotte,175,MYT,other
+Mexico,484,MEX,latam
+Micronesia (Federated States of),583,FSM,other
+Monaco,492,MCO,other
+Mongolia,496,MNG,east_asia
+Montenegro,499,MNE,other
+Montserrat,500,MSR,other
+Morocco,504,MAR,other
+Mozambique,508,MOZ,ssa
+Myanmar,104,MMR,other
+Namibia,516,NAM,ssa
+Nauru,520,NRU,other
+Nepal,524,NPL,south_asia
+Netherlands (Kingdom of the),528,NLD,other
+New Caledonia,540,NCL,other
+New Zealand,554,NZL,other
+Nicaragua,558,NIC,latam
+Niger,562,NER,ssa
+Nigeria,566,NGA,ssa
+Niue,570,NIU,other
+Norfolk Island,574,NFK,other
+North Macedonia,807,MKD,other
+Northern Mariana Islands,580,MNP,other
+Norway,578,NOR,other
+Oman,512,OMN,other
+Pakistan,586,PAK,south_asia
+Palau,585,PLW,other
+Panama,591,PAN,latam
+Papua New Guinea,598,PNG,other
+Paraguay,600,PRY,latam
+Peru,604,PER,latam
+Philippines,608,PHL,other
+Pitcairn,612,PCN,other
+Poland,616,POL,other
+Portugal,620,PRT,other
+Puerto Rico,630,PRI,other
+Qatar,634,QAT,other
+Republic of Korea,410,KOR,east_asia
+Republic of Moldova,498,MDA,other
+Réunion,638,REU,other
+Romania,642,ROU,other
+Russian Federation,643,RUS,other
+Rwanda,646,RWA,ssa
+Saint Barthélemy,652,BLM,other
+Saint Helena,654,SHN,other
+Saint Kitts and Nevis,659,KNA,other
+Saint Lucia,662,LCA,other
+Saint Martin (French Part),663,MAF,other
+Saint Pierre and Miquelon,666,SPM,other
+Saint Vincent and the Grenadines,670,VCT,other
+Samoa,882,WSM,other
+San Marino,674,SMR,other
+Sao Tome and Principe,678,STP,ssa
+Saudi Arabia,682,SAU,other
+Senegal,686,SEN,ssa
+Serbia,688,SRB,other
+Seychelles,690,SYC,ssa
+Sierra Leone,694,SLE,ssa
+Singapore,702,SGP,other
+Sint Maarten (Dutch part),534,SXM,other
+Slovakia,703,SVK,other
+Slovenia,705,SVN,other
+Solomon Islands,90,SLB,other
+Somalia,706,SOM,ssa
+South Africa,710,ZAF,ssa
+South Georgia and the South Sandwich Islands,239,SGS,other
+South Sudan,728,SSD,ssa
+Spain,724,ESP,other
+Sri Lanka,144,LKA,south_asia
+State of Palestine,275,PSE,other
+Sudan,729,SDN,ssa
+Suriname,740,SUR,latam
+Svalbard and Jan Mayen Islands,744,SJM,other
+Sweden,752,SWE,other
+Switzerland,756,CHE,other
+Syrian Arab Republic,760,SYR,other
+Tajikistan,762,TJK,other
+Thailand,764,THA,other
+Timor-Leste,626,TLS,other
+Togo,768,TGO,ssa
+Tokelau,772,TKL,other
+Tonga,776,TON,other
+Trinidad and Tobago,780,TTO,other
+Tunisia,788,TUN,other
+Türkiye,792,TUR,other
+Turkmenistan,795,TKM,other
+Turks and Caicos Islands,796,TCA,other
+Tuvalu,798,TUV,other
+Uganda,800,UGA,ssa
+Ukraine,804,UKR,other
+United Arab Emirates,784,ARE,other
+United Kingdom of Great Britain and Northern Ireland,826,GBR,other
+United Republic of Tanzania,834,TZA,ssa
+United States Minor Outlying Islands,581,UMI,other
+United States of America,840,USA,other
+United States Virgin Islands,850,VIR,other
+Uruguay,858,URY,latam
+Uzbekistan,860,UZB,other
+Vanuatu,548,VUT,other
+Venezuela (Bolivarian Republic of),862,VEN,latam
+Viet Nam,704,VNM,other
+Wallis and Futuna Islands,876,WLF,other
+Western Sahara,732,ESH,other
+Yemen,887,YEM,other
+Zambia,894,ZMB,ssa
+Zimbabwe,716,ZWE,ssa

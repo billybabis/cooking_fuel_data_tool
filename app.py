@@ -221,13 +221,32 @@ def load_em_intens_no_elec():
 
 @st.cache_data
 def load_em_intens_electricity():
-    """Per-country electricity emissions intensities (placeholder)."""
+    """Per-country electricity grid emission intensity.
+
+    Source: `data/elec_ems_intens_per_country.csv` (Combined Margin grid emission
+    factor, gCO2/kWh — header text says kgCO2/kWh but the values are physically
+    consistent with grams, not kilograms). Divided by 1000 at load time so the
+    stored value is in tons CO2 / MWh, which makes the per-row math
+    `total_fuel_cons_tons (MWh) × em_intens_CO2 (tCO2/MWh) = tons CO2`
+    align directly with non-electric rows.
+
+    CH4 and N2O are set to 0 — data not available, and for electricity these
+    contribute <5% of the CO2-equivalent total in most grids.
+    """
     try:
-        df = pd.read_csv('data/em_intens_electricity_per_country.csv')
+        df = pd.read_csv('data/elec_ems_intens_per_country.csv')
         df.columns = [c.strip() for c in df.columns]
-        for col in ['CO2', 'CH4', 'N2O']:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-        return df
+        # Map to canonical schema (column names in source are long/varied)
+        iso_col, name_col, val_col = df.columns[0], df.columns[1], df.columns[2]
+        df = df.rename(columns={iso_col: 'iso3', name_col: 'country', val_col: 'CO2'})
+        df['iso3'] = df['iso3'].astype(str).str.strip()
+        # Drop rows with no ISO3 (sub-regions like Azores/Madeira/Canary Islands,
+        # or non-UN-recognized: Kosovo, Taiwan, Channel Islands aggregate)
+        df = df[df['iso3'].notna() & (df['iso3'] != '') & (df['iso3'].str.lower() != 'nan')]
+        df['CO2'] = pd.to_numeric(df['CO2'], errors='coerce') / 1000.0  # gCO2/kWh -> tCO2/MWh
+        df['CH4'] = 0.0
+        df['N2O'] = 0.0
+        return df.reset_index(drop=True)
     except FileNotFoundError:
         return None
 
@@ -1063,11 +1082,7 @@ with st.container(border=True):
                 em_elec = load_em_intens_electricity()
 
                 if em_no_elec is None or em_elec is None:
-                    st.error(
-                        "Emissions intensity data not available. Expected files: "
-                        "`data/em_intens_per_fuel_no_elec_all_countries.csv` and "
-                        "`data/em_intens_electricity_per_country.csv`."
-                    )
+                    st.error("Emissions intensity data not available.")
                 else:
                     em_df = output_df.copy()
                     em_no_elec_join = em_no_elec.set_index('fuel')[['CO2', 'CH4', 'N2O']].rename(
@@ -1098,8 +1113,10 @@ with st.container(border=True):
                     st.caption(
                         f"Showing first 500 of {len(em_output_df):,} rows. "
                         "**Calculation:** `total_GHG = total_fuel_cons_tons × em_intens_GHG` per row. "
-                        "**Units note:** intensities in the source file are mass ratios (kg GHG / kg fuel), so for non-electric rows totals are in tons of GHG. "
-                        "For electric rows, the base quantity is MWh — interpret electricity totals according to the units of `em_intens_electricity_per_country.csv`."
+                        "**Units:** all `total_*` columns are in **tons of GHG**. "
+                        "Non-electric: intensities are mass ratios (kg GHG / kg fuel = tons/ton). "
+                        "Electric: source values are gCO2/kWh and divided by 1000 at load (= tons CO2 / MWh), so the multiplication directly yields tons. "
+                        "**CH4 and N2O for electricity are 0** — country-level data not available; those gases contribute <5% of CO2-eq for most grids."
                     )
 
                     missing_em = em_output_df[em_output_df['em_intens_CO2'].isna()]
@@ -1112,8 +1129,9 @@ with st.container(border=True):
                     st.markdown("---")
 
                     st.info(
-                        "📊 **Non-electric emissions intensity**: `data/em_intens_per_fuel_no_elec_all_countries.csv` (Electricity row ignored — handled separately)  \n"
-                        "📊 **Electricity emissions intensity**: `data/em_intens_electricity_per_country.csv` *(placeholder — replace with country-specific values when available)*"
+                        "📊 **Non-electric emissions intensity**: per-fuel intensities for all countries (Electricity row ignored — handled separately)  \n"
+                        "📊 **Electricity emissions intensity**: per-country Combined Margin grid emission factor (CO2 only; CH4 and N2O set to 0). "
+                        "Source: [UNFCCC — IFI TWG List of Methodologies](https://unfccc.int/climate-action/sectoral-engagement/ifis-harmonization-of-standards-for-ghg-accounting/ifi-twg-list-of-methodologies)."
                     )
 
                     # Excel download (2 sheets: Metadata + Data)
@@ -1140,11 +1158,11 @@ with st.container(border=True):
                                 ', '.join(selected_countries),
                                 ', '.join(selected_fuels),
                                 ', '.join(selected_areas),
-                                'em_intens_per_fuel_no_elec_all_countries.csv (Electricity row ignored)',
-                                'em_intens_electricity_per_country.csv (placeholder — country-specific values pending)',
+                                'Per-fuel emissions intensities for all countries (Electricity row ignored)',
+                                'Per-country Combined Margin grid emission factor, gCO2/kWh; CO2 only — CH4/N2O set to 0. Source: UNFCCC — IFI TWG List of Methodologies (https://unfccc.int/climate-action/sectoral-engagement/ifis-harmonization-of-standards-for-ghg-accounting/ifi-twg-list-of-methodologies)',
                                 f"{charcoal_multiplier:g} (applied to charcoal total_fuel_cons_tons only)",
                                 'total_GHG = total_fuel_cons_tons × em_intens_GHG',
-                                'For non-electric fuels, intensities are mass ratios (kg GHG / kg fuel), so totals are in tons of GHG. For electricity, units depend on the per-country placeholder.',
+                                'All total_* columns are in tons of GHG. Non-electric: intensities are mass ratios (kg/kg). Electric: source gCO2/kWh / 1000 = tons CO2 / MWh, applied to total_fuel_cons_tons (MWh for electric rows). CH4 and N2O for electricity are 0 (data unavailable; <5% of CO2-eq).',
                             ],
                         }
                         pd.DataFrame(em_metadata).to_excel(writer, index=False, sheet_name='Metadata & Sources')

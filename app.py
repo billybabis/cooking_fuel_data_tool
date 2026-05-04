@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 
+# IPCC AR5 GWP-100 factors (UNFCCC Enhanced Transparency Framework default, post-2024)
+GWP_CH4 = 28
+GWP_N2O = 265
+
 # Page configuration
 st.set_page_config(page_title="Cooking Fuel Data Tool", layout="wide")
 
@@ -15,17 +19,25 @@ if 'headcount_data' not in st.session_state:
 if 'per_capita_data' not in st.session_state:
     st.session_state.per_capita_data = None
 if 'data_source_population_share' not in st.session_state:
-    st.session_state.data_source_population_share = "UN WHO Data from Stoner et al. 2021"
+    st.session_state.data_source_population_share = "Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021)"
 if 'data_source_base_citation' not in st.session_state:
-    st.session_state.data_source_base_citation = "Stoner, O., Shaddick, G., Economou, T. et al. Global household energy model: a multivariate hierarchical approach to estimating trends in the use of polluting and clean fuels for cooking. Nat Commun 12, 5795 (2021). https://doi.org/10.1038/s41467-021-26036-x"
+    st.session_state.data_source_base_citation = (
+        "Projections through 2050 are updated estimates shared by O. Stoner, applying the methods "
+        "described in: Stoner, O., Shaddick, G., Economou, T. et al. *Global household energy model: "
+        "a multivariate hierarchical approach to estimating trends in the use of polluting and clean "
+        "fuels for cooking.* Nat Commun 12, 5795 (2021). "
+        "[https://doi.org/10.1038/s41467-021-26036-x](https://doi.org/10.1038/s41467-021-26036-x). "
+        "The published paper itself reports projections through 2030; values for 2031–2050 come from "
+        "subsequent runs by the same author using the same methodology."
+    )
 if 'data_source_custom_citation' not in st.session_state:
     st.session_state.data_source_custom_citation = None
 if 'custom_source_description' not in st.session_state:
     st.session_state.custom_source_description = None
 if 'data_source_per_capita' not in st.session_state:
-    st.session_state.data_source_per_capita = "Default Per Capita Data (Placeholder)"
+    st.session_state.data_source_per_capita = "DFloess, Grieshop, Puzzolo, et al. (2023)"
 if 'per_capita_base_citation' not in st.session_state:
-    st.session_state.per_capita_base_citation = "[Citation pending - placeholder data]"
+    st.session_state.per_capita_base_citation = "DFloess, Emily, Andrew Grieshop, Elisa Puzzolo, et al. “Scaling up Gas and Electric Cooking in Low- and Middle-Income Countries: Climate Threat or Mitigation Strategy with Co-Benefits?” Environmental Research Letters 18, no. 3 (2023): 034010. https://doi.org/10.1088/1748-9326/acb501."
 if 'per_capita_source_description' not in st.session_state:
     st.session_state.per_capita_source_description = None
 if 'custom_projection_source' not in st.session_state:
@@ -49,6 +61,10 @@ def open_modal(modal_name):
         st.session_state.show_per_capita_modal = True
     elif modal_name == 'projection':
         st.session_state.show_projection_modal = True
+
+    # Rerun so the gating `if st.session_state.get(...)` blocks see the new value
+    # this script execution and open the dialog on the first click instead of the second.
+    st.rerun()
 
 @st.cache_data
 def load_one_dataset(local_fname, header_names=['iso3', 'country', 'region', 'area', 'fuel', 'year',
@@ -642,7 +658,7 @@ if st.session_state.get('show_per_capita_modal'):
 
 
 # Modal: customize year projections
-if end_year > 2025 and st.session_state.get('show_projection_modal'):
+if st.session_state.get('show_projection_modal'):
     @st.dialog("Customize Proportional Fuel-Use Projections", width="large")
     def show_projection_modal():
         st.markdown("### Enter Proportional Fuel Use Percentages for Any Year")
@@ -722,7 +738,7 @@ if end_year > 2025 and st.session_state.get('show_projection_modal'):
                             st.session_state.custom_year = selected_custom_year
                             st.session_state.custom_projection_source = data_source_citation.strip()
                             st.session_state.use_custom_projections = True
-                            st.session_state.data_source_population_share = f"UN WHO Data from Stoner et al. 2021 with Custom Projections (Year {selected_custom_year})"
+                            st.session_state.data_source_population_share = f"Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021), with Custom Projections (Year {selected_custom_year})"
                             st.session_state.show_projection_modal = False
                             st.success("✅ Custom projections applied!")
                             st.rerun()
@@ -783,7 +799,7 @@ if end_year > 2025 and st.session_state.get('show_projection_modal'):
                                             st.session_state.custom_year = selected_custom_year
                                             st.session_state.custom_projection_source = csv_data_source_citation.strip()
                                             st.session_state.use_custom_projections = True
-                                            st.session_state.data_source_population_share = f"UN WHO Data from Stoner et al. 2021 with Custom Projections (Year {selected_custom_year})"
+                                            st.session_state.data_source_population_share = f"Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021), with Custom Projections (Year {selected_custom_year})"
                                             st.session_state.show_projection_modal = False
                                             st.rerun()
                                 with col2:
@@ -1004,14 +1020,14 @@ with st.container(border=True):
                 st.markdown("---")
 
                 st.info(
-                    f"📊 **Fuel-share data**: {st.session_state.get('data_source_population_share', 'UN WHO Data from Stoner et al. 2021')}  \n"
+                    f"📊 **Fuel-share data**: {st.session_state.get('data_source_population_share', 'Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021)')}  \n"
                     f"📊 **Per-capita data**: {st.session_state.get('data_source_per_capita', 'Default Per Capita Data (Placeholder)')}"
                 )
 
                 # Excel download (2 sheets: Metadata + Data)
                 buffer = BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                    data_src = st.session_state.get('data_source_population_share', 'UN WHO Data from Stoner et al. 2021')
+                    data_src = st.session_state.get('data_source_population_share', 'Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021)')
                     citations_list = []
                     if 'Stoner' in data_src:
                         citations_list.append(st.session_state.get('data_source_base_citation', 'N/A'))
@@ -1107,17 +1123,48 @@ with st.container(border=True):
                                'total_CO2', 'total_CH4', 'total_N2O']
                     em_output_df = em_df[em_cols].copy()
 
-                    st.subheader("Total emissions")
-                    st.write(f"Total rows: {len(em_output_df):,}")
-                    st.dataframe(em_output_df.head(500), hide_index=True, height=500, use_container_width=True)
-                    st.caption(
-                        f"Showing first 500 of {len(em_output_df):,} rows. "
-                        "**Calculation:** `total_GHG = total_fuel_cons_tons × em_intens_GHG` per row. "
-                        "**Units:** all `total_*` columns are in **tons of GHG**. "
-                        "Non-electric: intensities are mass ratios (kg GHG / kg fuel = tons/ton). "
-                        "Electric: source values are gCO2/kWh and divided by 1000 at load (= tons CO2 / MWh), so the multiplication directly yields tons. "
-                        "**CH4 and N2O for electricity are 0** — country-level data not available; those gases contribute <5% of CO2-eq for most grids."
+                    # Aggregate by country / area / year (sum across fuels) and compute CO2-eq
+                    summary_group_cols = ['iso3', 'country', 'region', 'area', 'year']
+                    em_summary_df = (
+                        em_df.groupby(summary_group_cols, dropna=False, as_index=False)[
+                            ['total_CO2', 'total_CH4', 'total_N2O']
+                        ].sum(min_count=1)
                     )
+                    em_summary_df['total_CO2eq'] = (
+                        em_summary_df['total_CO2'].fillna(0)
+                        + GWP_CH4 * em_summary_df['total_CH4'].fillna(0)
+                        + GWP_N2O * em_summary_df['total_N2O'].fillna(0)
+                    )
+
+                    st.subheader("Total emissions")
+                    em_view = st.radio(
+                        "Table view",
+                        options=["Per-fuel detail", "Country / area summary (CO₂-eq)"],
+                        horizontal=True,
+                        key="emissions_view",
+                    )
+
+                    if em_view == "Per-fuel detail":
+                        st.write(f"Total rows: {len(em_output_df):,}")
+                        st.dataframe(em_output_df.head(500), hide_index=True, height=500, use_container_width=True)
+                        st.caption(
+                            f"Showing first 500 of {len(em_output_df):,} rows. "
+                            "**Calculation:** `total_GHG = total_fuel_cons_tons × em_intens_GHG` per row. "
+                            "**Units:** all `total_*` columns are in **tons of GHG**. "
+                            "Non-electric: intensities are mass ratios (kg GHG / kg fuel = tons/ton). "
+                            "Electric: source values are gCO2/kWh and divided by 1000 at load (= tons CO2 / MWh), so the multiplication directly yields tons. "
+                            "**CH4 and N2O for electricity are 0** — country-level data not available; those gases contribute <5% of CO2-eq for most grids."
+                        )
+                    else:
+                        st.write(f"Total rows: {len(em_summary_df):,}")
+                        st.dataframe(em_summary_df.head(500), hide_index=True, height=500, use_container_width=True)
+                        st.caption(
+                            f"Showing first 500 of {len(em_summary_df):,} rows. "
+                            "Aggregated by country / area / year, summing emissions across all fuels. "
+                            f"**`total_CO2eq` = total_CO2 + {GWP_CH4} × total_CH4 + {GWP_N2O} × total_N2O** "
+                            "(IPCC AR5 GWP-100, the UNFCCC Enhanced Transparency Framework default). "
+                            "**Units:** all columns in **tons**."
+                        )
 
                     missing_em = em_output_df[em_output_df['em_intens_CO2'].isna()]
                     if len(missing_em) > 0:
@@ -1149,6 +1196,8 @@ with st.container(border=True):
                                 'Electricity Emissions Source',
                                 'Charcoal → Fuelwood Equivalence Factor',
                                 'Calculation',
+                                'CO2-eq Calculation',
+                                'GWP Source',
                                 'Notes',
                             ],
                             'Value': [
@@ -1162,11 +1211,14 @@ with st.container(border=True):
                                 'Per-country Combined Margin grid emission factor, gCO2/kWh; CO2 only — CH4/N2O set to 0. Source: UNFCCC — IFI TWG List of Methodologies (https://unfccc.int/climate-action/sectoral-engagement/ifis-harmonization-of-standards-for-ghg-accounting/ifi-twg-list-of-methodologies)',
                                 f"{charcoal_multiplier:g} (applied to charcoal total_fuel_cons_tons only)",
                                 'total_GHG = total_fuel_cons_tons × em_intens_GHG',
-                                'All total_* columns are in tons of GHG. Non-electric: intensities are mass ratios (kg/kg). Electric: source gCO2/kWh / 1000 = tons CO2 / MWh, applied to total_fuel_cons_tons (MWh for electric rows). CH4 and N2O for electricity are 0 (data unavailable; <5% of CO2-eq).',
+                                f'total_CO2eq = total_CO2 + {GWP_CH4} × total_CH4 + {GWP_N2O} × total_N2O',
+                                'IPCC AR5 GWP-100 (UNFCCC Enhanced Transparency Framework default, post-2024)',
+                                'All total_* columns are in tons of GHG. Non-electric: intensities are mass ratios (kg/kg). Electric: source gCO2/kWh / 1000 = tons CO2 / MWh, applied to total_fuel_cons_tons (MWh for electric rows). CH4 and N2O for electricity are 0 (data unavailable; <5% of CO2-eq). The "Summary by Country-Area" sheet aggregates emissions across all fuels per country/area/year.',
                             ],
                         }
                         pd.DataFrame(em_metadata).to_excel(writer, index=False, sheet_name='Metadata & Sources')
                         em_output_df.to_excel(writer, index=False, sheet_name='Total Emissions')
+                        em_summary_df.to_excel(writer, index=False, sheet_name='Summary by Country-Area')
                     em_buffer.seek(0)
 
                     em_default_filename = f"cooking_fuel_emissions_{start_year}_{end_year}"
@@ -1195,7 +1247,7 @@ with st.container(border=True):
             if not selected_countries:
                 pass  # alert shown above the pills
             else:
-                data_source = st.session_state.get('data_source_population_share', 'UN WHO Data from Stoner et al. 2021')
+                data_source = st.session_state.get('data_source_population_share', 'Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021)')
                 base_citation = st.session_state.get('data_source_base_citation')
                 custom_citation = st.session_state.get('data_source_custom_citation') or st.session_state.get('custom_projection_source')
                 has_custom_dataset = st.session_state.get('custom_source_description') is not None
@@ -1276,14 +1328,13 @@ with st.container(border=True):
                     if st.button("📤 Upload custom dataset", use_container_width=True):
                         open_modal('custom_dataset')
                 with bcols[1]:
-                    if st.button("📈 Customize year projections", use_container_width=True,
-                                 help="Available when the year range extends past 2025"):
+                    if st.button("📈 Customize year projections", use_container_width=True):
                         open_modal('projection')
                 with bcols[2]:
                     if st.session_state.get('custom_source_description'):
                         if st.button("🔄 Revert to default WHO data", use_container_width=True):
                             load_default_data()
-                            st.session_state.data_source_population_share = "UN WHO Data from Stoner et al. 2021"
+                            st.session_state.data_source_population_share = "Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021)"
                             st.session_state.data_source_custom_citation = None
                             st.session_state.custom_source_description = None
                             st.rerun()
@@ -1294,7 +1345,7 @@ with st.container(border=True):
                             st.session_state.custom_year_data = None
                             st.session_state.custom_year = None
                             st.session_state.custom_projection_source = None
-                            st.session_state.data_source_population_share = "UN WHO Data from Stoner et al. 2021"
+                            st.session_state.data_source_population_share = "Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021)"
                             st.rerun()
 
 
@@ -1361,7 +1412,7 @@ with st.container(border=True):
                         key="charcoal_multiplier",
                         label_visibility="collapsed",
                         help=(
-                            "Kilograms of fresh wood needed to produce 1 kg of charcoal in a kiln. "
+                            "Kilograms of dry wood needed to produce 1 kg of charcoal in a kiln. "
                             "In the Outputs tab, charcoal rows of `total_fuel_cons_tons` are multiplied by this factor "
                             "so they represent the upstream wood biomass that was felled and burned to make the charcoal — "
                             "the right number for forest-impact / biomass-supply analyses. "
@@ -1371,9 +1422,14 @@ with st.container(border=True):
                     )
                 st.caption(
                     "**Why this matters:** charcoal kilns waste most of their input wood as heat. "
-                    "A factor of 6 means producing 1 ton of charcoal consumes ~6 tons of fresh wood. "
+                    "A factor of 6 means producing 1 ton of charcoal consumes ~6 tons of dry wood. "
                     "In the Outputs tab, charcoal rows of `total_fuel_cons_tons` count this upstream "
                     "wood biomass, not charcoal mass at the stove."
+                    "Wood-to-charcoal conversion efficiencies vary widely. The recent [UNFCCC fNRB "
+                    "assessment](https://cdm.unfccc.int/DNA/fNRB/index.html), which was used to derive "
+                    "the data in UNFCCC's [Tool33](https://cdm.unfccc.int/methodologies/PAmethodologies/tools/am-tool-33-v3.pdf) "
+                    "used 6:1, which we use here as a default. Any alternate entry should be " \
+                    "supported by a well-documented field-based assessment." 
                 )
 
                 st.markdown("---")

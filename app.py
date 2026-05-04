@@ -42,29 +42,6 @@ if 'per_capita_source_description' not in st.session_state:
     st.session_state.per_capita_source_description = None
 if 'custom_projection_source' not in st.session_state:
     st.session_state.custom_projection_source = None
-if 'show_custom_dataset_modal' not in st.session_state:
-    st.session_state.show_custom_dataset_modal = False
-if 'show_per_capita_modal' not in st.session_state:
-    st.session_state.show_per_capita_modal = False
-if 'show_projection_modal' not in st.session_state:
-    st.session_state.show_projection_modal = False
-
-def open_modal(modal_name):
-    """Close all modals and open the specified one"""
-    st.session_state.show_custom_dataset_modal = False
-    st.session_state.show_per_capita_modal = False
-    st.session_state.show_projection_modal = False
-
-    if modal_name == 'custom_dataset':
-        st.session_state.show_custom_dataset_modal = True
-    elif modal_name == 'per_capita':
-        st.session_state.show_per_capita_modal = True
-    elif modal_name == 'projection':
-        st.session_state.show_projection_modal = True
-
-    # Rerun so the gating `if st.session_state.get(...)` blocks see the new value
-    # this script execution and open the dialog on the first click instead of the second.
-    st.rerun()
 
 @st.cache_data
 def load_one_dataset(local_fname, header_names=['iso3', 'country', 'region', 'area', 'fuel', 'year',
@@ -433,388 +410,367 @@ start_year, end_year = year_range
 # ----------------------------------------------------------------------------
 
 # Modal: upload custom proportional fuel-use dataset
-if st.session_state.get('show_custom_dataset_modal'):
-    @st.dialog("Upload Custom Proportional Fuel-Use Dataset", width="large")
-    def show_custom_dataset_modal():
-        st.markdown("### Upload Complete Fuel Proportion Dataset (Percentages)")
-        st.markdown("Upload your own **proportional fuel use data** (in percentages) for **all years** to replace the default UN WHO dataset")
-        st.caption("These percentages will be used to calculate headcount and fuel consumption outputs.")
+@st.dialog("Upload Custom Proportional Fuel-Use Dataset", width="large")
+def show_custom_dataset_modal():
+    st.markdown("### Upload Complete Fuel Proportion Dataset (Percentages)")
+    st.markdown("Upload your own **proportional fuel use data** (in percentages) for **all years** to replace the default UN WHO dataset")
+    st.caption("These percentages will be used to calculate headcount and fuel consumption outputs.")
 
-        st.warning("⚠️ **Important Data Quality Notice**: Custom data should be based on robust sources supported by peer-reviewed academic literature, official government statistics, or reputable international organizations.")
+    st.warning("⚠️ **Important Data Quality Notice**: Custom data should be based on robust sources supported by peer-reviewed academic literature, official government statistics, or reputable international organizations.")
 
-        st.markdown("---")
-        st.markdown("### 📚 Step 1: Describe Your Data Source")
+    st.markdown("---")
+    st.markdown("### 📚 Step 1: Describe Your Data Source")
 
-        source_description = st.text_input(
-            "Brief source description (required):",
-            placeholder="e.g., IEA Energy Database 2024, Custom Regional Study, National Statistics Office",
-            key="custom_source_description_input"
-        )
+    source_description = st.text_input(
+        "Brief source description (required):",
+        placeholder="e.g., IEA Energy Database 2024, Custom Regional Study, National Statistics Office",
+        key="custom_source_description_input"
+    )
 
-        dataset_citation = st.text_area(
-            "Full citation (required):",
-            placeholder="e.g., Smith, J., Doe, A. et al. (2024). 'Global Cooking Fuel Transitions Database.' Journal of Energy Studies, 45(3), 123-145. DOI: 10.xxxx/xxxxx",
-            height=100,
-            key="full_dataset_citation"
-        )
+    dataset_citation = st.text_area(
+        "Full citation (required):",
+        placeholder="e.g., Smith, J., Doe, A. et al. (2024). 'Global Cooking Fuel Transitions Database.' Journal of Energy Studies, 45(3), 123-145. DOI: 10.xxxx/xxxxx",
+        height=100,
+        key="full_dataset_citation"
+    )
 
-        source_info_complete = (source_description and len(source_description.strip()) > 0 and
-                                dataset_citation and len(dataset_citation.strip()) > 0)
+    source_info_complete = (source_description and len(source_description.strip()) > 0 and
+                            dataset_citation and len(dataset_citation.strip()) > 0)
 
-        st.markdown("---")
-        st.markdown("### 📁 Step 2: Upload Your Data File")
+    st.markdown("---")
+    st.markdown("### 📁 Step 2: Upload Your Data File")
 
-        if not source_info_complete:
-            st.info("ℹ️ Please complete Step 1 above before uploading your file.")
+    if not source_info_complete:
+        st.info("ℹ️ Please complete Step 1 above before uploading your file.")
 
-        st.markdown("#### Required Columns:")
-        st.code("iso3, country, region, area, fuel, year, population_share")
-        st.caption("**Note:** `population_share` values should be between 0 and 1 (e.g., 0.75 = 75%). The `region` column will be re-derived from country_codes after upload.")
+    st.markdown("#### Required Columns:")
+    st.code("iso3, country, region, area, fuel, year, population_share")
+    st.caption("**Note:** `population_share` values should be between 0 and 1 (e.g., 0.75 = 75%). The `region` column will be re-derived from country_codes after upload.")
 
-        uploaded_file = st.file_uploader(
-            "Choose CSV or Excel file",
-            type=['csv', 'xlsx'],
-            disabled=not source_info_complete
-        )
+    uploaded_file = st.file_uploader(
+        "Choose CSV or Excel file",
+        type=['csv', 'xlsx'],
+        disabled=not source_info_complete
+    )
 
-        if uploaded_file and source_info_complete:
-            st.success(f"✅ File '{uploaded_file.name}' uploaded")
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    preview_df = pd.read_csv(uploaded_file)
-                else:
-                    preview_df = pd.read_excel(uploaded_file)
+    if uploaded_file and source_info_complete:
+        st.success(f"✅ File '{uploaded_file.name}' uploaded")
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                preview_df = pd.read_csv(uploaded_file)
+            else:
+                preview_df = pd.read_excel(uploaded_file)
 
-                st.markdown("---")
-                st.markdown("### 📊 Step 3: Preview & Validate")
-                st.dataframe(preview_df.head(10), use_container_width=True)
-
-                required_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'year', 'population_share']
-                missing_cols = [col for col in required_cols if col not in preview_df.columns]
-
-                if missing_cols:
-                    st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
-                else:
-                    st.success("✅ All required columns found")
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button("✅ Load Custom Dataset", type="primary", use_container_width=True):
-                            uploaded_file.seek(0)
-                            if uploaded_file.name.endswith('.csv'):
-                                new_df = pd.read_csv(uploaded_file)
-                            else:
-                                new_df = pd.read_excel(uploaded_file)
-                            new_df.columns = [c.strip().lower().replace('"', '') for c in new_df.columns]
-                            if 'population_share' in new_df.columns:
-                                new_df = new_df.rename(columns={'population_share': 'percent_median'})
-                            new_df['fuel'] = new_df['fuel'].astype(str).str.strip().str.lower()
-                            new_df['fuel'] = new_df['fuel'].replace({'biomass': 'fuelwood', 'electricity': 'electric'})
-                            # Re-derive region from country_codes for canonical taxonomy
-                            iso3_to_region = get_iso3_to_region()
-                            new_df['region'] = new_df['iso3'].map(iso3_to_region)
-                            st.session_state.population_share_per_fuel_df = new_df
-
-                            st.session_state.data_source_population_share = source_description.strip()
-                            st.session_state.custom_source_description = source_description.strip()
-                            st.session_state.data_source_custom_citation = dataset_citation.strip()
-                            st.session_state.show_custom_dataset_modal = False
-
-                            st.success("✅ Custom dataset loaded successfully!")
-                            st.rerun()
-                    with col2:
-                        if st.button("❌ Cancel", use_container_width=True):
-                            st.session_state.show_custom_dataset_modal = False
-                            st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error reading file: {str(e)}")
-
-        if not uploaded_file:
             st.markdown("---")
-            if st.button("❌ Close", use_container_width=True):
-                st.session_state.show_custom_dataset_modal = False
-                st.rerun()
+            st.markdown("### 📊 Step 3: Preview & Validate")
+            st.dataframe(preview_df.head(10), use_container_width=True)
 
-    show_custom_dataset_modal()
+            required_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'year', 'population_share']
+            missing_cols = [col for col in required_cols if col not in preview_df.columns]
+
+            if missing_cols:
+                st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
+            else:
+                st.success("✅ All required columns found")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("✅ Load Custom Dataset", type="primary", use_container_width=True):
+                        uploaded_file.seek(0)
+                        if uploaded_file.name.endswith('.csv'):
+                            new_df = pd.read_csv(uploaded_file)
+                        else:
+                            new_df = pd.read_excel(uploaded_file)
+                        new_df.columns = [c.strip().lower().replace('"', '') for c in new_df.columns]
+                        if 'population_share' in new_df.columns:
+                            new_df = new_df.rename(columns={'population_share': 'percent_median'})
+                        new_df['fuel'] = new_df['fuel'].astype(str).str.strip().str.lower()
+                        new_df['fuel'] = new_df['fuel'].replace({'biomass': 'fuelwood', 'electricity': 'electric'})
+                        # Re-derive region from country_codes for canonical taxonomy
+                        iso3_to_region = get_iso3_to_region()
+                        new_df['region'] = new_df['iso3'].map(iso3_to_region)
+                        st.session_state.population_share_per_fuel_df = new_df
+
+                        st.session_state.data_source_population_share = source_description.strip()
+                        st.session_state.custom_source_description = source_description.strip()
+                        st.session_state.data_source_custom_citation = dataset_citation.strip()
+
+                        st.success("✅ Custom dataset loaded successfully!")
+                        st.rerun()
+                with col2:
+                    if st.button("❌ Cancel", use_container_width=True):
+                        st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error reading file: {str(e)}")
+
+    if not uploaded_file:
+        st.markdown("---")
+        if st.button("❌ Close", use_container_width=True):
+            st.rerun()
 
 
 # Modal: upload custom per-capita data (region-keyed)
-if st.session_state.get('show_per_capita_modal'):
-    @st.dialog("Upload Custom Per Capita Data", width="large")
-    def show_per_capita_modal():
-        st.markdown("### Upload Per Capita Fuel Consumption Data")
-        st.markdown("Upload custom per-capita consumption rates keyed by **region** and **fuel**.")
-        st.caption("**Region values:** must match country_codes regions (e.g., `ssa`, `east_asia`, `south_asia`, `latam`, `other`). Leave region blank to apply a value globally — it will be expanded to all regions on load.")
+@st.dialog("Upload Custom Per Capita Data", width="large")
+def show_per_capita_modal():
+    st.markdown("### Upload Per Capita Fuel Consumption Data")
+    st.markdown("Upload custom per-capita consumption rates keyed by **region** and **fuel**.")
+    st.caption("**Region values:** must match country_codes regions (e.g., `ssa`, `east_asia`, `south_asia`, `latam`, `other`). Leave region blank to apply a value globally — it will be expanded to all regions on load.")
 
-        st.warning("⚠️ **Important Data Quality Notice**: Custom data should be based on robust sources supported by peer-reviewed academic literature, official government statistics, or reputable international organizations.")
+    st.warning("⚠️ **Important Data Quality Notice**: Custom data should be based on robust sources supported by peer-reviewed academic literature, official government statistics, or reputable international organizations.")
 
-        st.markdown("---")
-        st.markdown("### 📚 Step 1: Describe Your Data Source")
+    st.markdown("---")
+    st.markdown("### 📚 Step 1: Describe Your Data Source")
 
-        per_capita_source_desc = st.text_input(
-            "Brief source description (required):",
-            placeholder="e.g., World Bank Energy Data 2024, Regional Consumption Survey, National Energy Statistics",
-            key="per_capita_source_desc_input"
-        )
+    per_capita_source_desc = st.text_input(
+        "Brief source description (required):",
+        placeholder="e.g., World Bank Energy Data 2024, Regional Consumption Survey, National Energy Statistics",
+        key="per_capita_source_desc_input"
+    )
 
-        per_capita_citation_input = st.text_area(
-            "Full citation (required):",
-            placeholder="e.g., Jones, A., Smith, B. (2024). 'Per Capita Fuel Consumption Patterns.' Energy Economics, 78(2), 45-67. DOI: 10.xxxx/xxxxx",
-            height=100,
-            key="per_capita_full_citation"
-        )
+    per_capita_citation_input = st.text_area(
+        "Full citation (required):",
+        placeholder="e.g., Jones, A., Smith, B. (2024). 'Per Capita Fuel Consumption Patterns.' Energy Economics, 78(2), 45-67. DOI: 10.xxxx/xxxxx",
+        height=100,
+        key="per_capita_full_citation"
+    )
 
-        per_capita_source_complete = (per_capita_source_desc and len(per_capita_source_desc.strip()) > 0 and
-                                      per_capita_citation_input and len(per_capita_citation_input.strip()) > 0)
+    per_capita_source_complete = (per_capita_source_desc and len(per_capita_source_desc.strip()) > 0 and
+                                  per_capita_citation_input and len(per_capita_citation_input.strip()) > 0)
 
-        st.markdown("---")
-        st.markdown("### 📁 Step 2: Upload Your Data File")
+    st.markdown("---")
+    st.markdown("### 📁 Step 2: Upload Your Data File")
 
-        if not per_capita_source_complete:
-            st.info("ℹ️ Please complete Step 1 above before uploading your file.")
+    if not per_capita_source_complete:
+        st.info("ℹ️ Please complete Step 1 above before uploading your file.")
 
-        st.markdown("#### Required Columns:")
-        st.code("fuel, region, pc_fuel, pc_fuel_units")
-        st.caption("**Units example:** `MWh/person-year` for electric, `oven-dry tons/person-year` for fuelwood, `tons/person-year` for others.")
+    st.markdown("#### Required Columns:")
+    st.code("fuel, region, pc_fuel, pc_fuel_units")
+    st.caption("**Units example:** `MWh/person-year` for electric, `oven-dry tons/person-year` for fuelwood, `tons/person-year` for others.")
 
-        uploaded_per_capita_file = st.file_uploader(
-            "Choose CSV or Excel file",
-            type=['csv', 'xlsx'],
-            disabled=not per_capita_source_complete,
-            key="per_capita_file_uploader"
-        )
+    uploaded_per_capita_file = st.file_uploader(
+        "Choose CSV or Excel file",
+        type=['csv', 'xlsx'],
+        disabled=not per_capita_source_complete,
+        key="per_capita_file_uploader"
+    )
 
-        if uploaded_per_capita_file and per_capita_source_complete:
-            st.success(f"✅ File '{uploaded_per_capita_file.name}' uploaded")
-            try:
-                if uploaded_per_capita_file.name.endswith('.csv'):
-                    preview_per_capita_df = pd.read_csv(uploaded_per_capita_file)
-                else:
-                    preview_per_capita_df = pd.read_excel(uploaded_per_capita_file)
+    if uploaded_per_capita_file and per_capita_source_complete:
+        st.success(f"✅ File '{uploaded_per_capita_file.name}' uploaded")
+        try:
+            if uploaded_per_capita_file.name.endswith('.csv'):
+                preview_per_capita_df = pd.read_csv(uploaded_per_capita_file)
+            else:
+                preview_per_capita_df = pd.read_excel(uploaded_per_capita_file)
 
-                st.markdown("---")
-                st.markdown("### 📊 Step 3: Preview & Validate")
-                st.dataframe(preview_per_capita_df.head(10), use_container_width=True)
-
-                required_cols = ['fuel', 'region', 'pc_fuel', 'pc_fuel_units']
-                preview_cols_lower = [c.lower() for c in preview_per_capita_df.columns]
-                missing_cols = [col for col in required_cols if col not in preview_cols_lower]
-
-                if missing_cols:
-                    st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
-                else:
-                    st.success("✅ All required columns found")
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button("✅ Load Custom Per Capita Data", type="primary", use_container_width=True):
-                            uploaded_per_capita_file.seek(0)
-                            if uploaded_per_capita_file.name.endswith('.csv'):
-                                new_pc = pd.read_csv(uploaded_per_capita_file)
-                            else:
-                                new_pc = pd.read_excel(uploaded_per_capita_file)
-
-                            new_pc.columns = [c.strip().lower() for c in new_pc.columns]
-                            new_pc['fuel'] = new_pc['fuel'].astype(str).str.strip().str.lower()
-                            new_pc['region'] = new_pc['region'].fillna('').astype(str).str.strip().str.lower()
-                            new_pc['pc_fuel'] = pd.to_numeric(new_pc['pc_fuel'], errors='coerce')
-                            new_pc['pc_fuel_units'] = new_pc['pc_fuel_units'].astype(str).str.strip()
-
-                            # Expand global rows (empty region) to all regions
-                            cc = load_country_codes()
-                            all_regions = sorted([r for r in cc['region'].dropna().unique().tolist() if str(r).strip() != ''])
-                            global_rows = new_pc[new_pc['region'] == ''].copy()
-                            specific_rows = new_pc[new_pc['region'] != ''].copy()
-                            if len(global_rows) > 0 and all_regions:
-                                expanded = []
-                                for r in all_regions:
-                                    g = global_rows.copy()
-                                    g['region'] = r
-                                    expanded.append(g)
-                                new_pc = pd.concat([specific_rows, pd.concat(expanded, ignore_index=True)], ignore_index=True)
-                            else:
-                                new_pc = specific_rows
-
-                            st.session_state.per_capita_data = new_pc.reset_index(drop=True)
-                            st.session_state.data_source_per_capita = per_capita_source_desc.strip()
-                            st.session_state.per_capita_source_description = per_capita_source_desc.strip()
-                            st.session_state.per_capita_citation = per_capita_citation_input.strip()
-                            st.session_state.show_per_capita_modal = False
-
-                            st.success("✅ Custom per capita data loaded successfully!")
-                            st.rerun()
-                    with col2:
-                        if st.button("❌ Cancel", use_container_width=True):
-                            st.session_state.show_per_capita_modal = False
-                            st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error reading file: {str(e)}")
-
-        if not uploaded_per_capita_file:
             st.markdown("---")
-            if st.button("❌ Close", use_container_width=True):
-                st.session_state.show_per_capita_modal = False
-                st.rerun()
+            st.markdown("### 📊 Step 3: Preview & Validate")
+            st.dataframe(preview_per_capita_df.head(10), use_container_width=True)
 
-    show_per_capita_modal()
+            required_cols = ['fuel', 'region', 'pc_fuel', 'pc_fuel_units']
+            preview_cols_lower = [c.lower() for c in preview_per_capita_df.columns]
+            missing_cols = [col for col in required_cols if col not in preview_cols_lower]
+
+            if missing_cols:
+                st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
+            else:
+                st.success("✅ All required columns found")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("✅ Load Custom Per Capita Data", type="primary", use_container_width=True):
+                        uploaded_per_capita_file.seek(0)
+                        if uploaded_per_capita_file.name.endswith('.csv'):
+                            new_pc = pd.read_csv(uploaded_per_capita_file)
+                        else:
+                            new_pc = pd.read_excel(uploaded_per_capita_file)
+
+                        new_pc.columns = [c.strip().lower() for c in new_pc.columns]
+                        new_pc['fuel'] = new_pc['fuel'].astype(str).str.strip().str.lower()
+                        new_pc['region'] = new_pc['region'].fillna('').astype(str).str.strip().str.lower()
+                        new_pc['pc_fuel'] = pd.to_numeric(new_pc['pc_fuel'], errors='coerce')
+                        new_pc['pc_fuel_units'] = new_pc['pc_fuel_units'].astype(str).str.strip()
+
+                        # Expand global rows (empty region) to all regions
+                        cc = load_country_codes()
+                        all_regions = sorted([r for r in cc['region'].dropna().unique().tolist() if str(r).strip() != ''])
+                        global_rows = new_pc[new_pc['region'] == ''].copy()
+                        specific_rows = new_pc[new_pc['region'] != ''].copy()
+                        if len(global_rows) > 0 and all_regions:
+                            expanded = []
+                            for r in all_regions:
+                                g = global_rows.copy()
+                                g['region'] = r
+                                expanded.append(g)
+                            new_pc = pd.concat([specific_rows, pd.concat(expanded, ignore_index=True)], ignore_index=True)
+                        else:
+                            new_pc = specific_rows
+
+                        st.session_state.per_capita_data = new_pc.reset_index(drop=True)
+                        st.session_state.data_source_per_capita = per_capita_source_desc.strip()
+                        st.session_state.per_capita_source_description = per_capita_source_desc.strip()
+                        st.session_state.per_capita_citation = per_capita_citation_input.strip()
+
+                        st.success("✅ Custom per capita data loaded successfully!")
+                        st.rerun()
+                with col2:
+                    if st.button("❌ Cancel", use_container_width=True):
+                        st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error reading file: {str(e)}")
+
+    if not uploaded_per_capita_file:
+        st.markdown("---")
+        if st.button("❌ Close", use_container_width=True):
+            st.rerun()
 
 
 # Modal: customize year projections
-if st.session_state.get('show_projection_modal'):
-    @st.dialog("Customize Proportional Fuel-Use Projections", width="large")
-    def show_projection_modal():
-        st.markdown("### Enter Proportional Fuel Use Percentages for Any Year")
+@st.dialog("Customize Proportional Fuel-Use Projections", width="large")
+def show_projection_modal():
+    st.markdown("### Enter Proportional Fuel Use Percentages for Any Year")
 
-        selected_custom_year = st.selectbox(
-            "Select year to customize:",
-            options=list(range(start_year, end_year + 1)),
-            index=end_year - start_year,
-        )
+    selected_custom_year = st.selectbox(
+        "Select year to customize:",
+        options=list(range(start_year, end_year + 1)),
+        index=end_year - start_year,
+    )
 
-        st.caption(f"Your custom values for {selected_custom_year} will be linearly interpolated to the 1990 and 2050 WHO baseline data.")
+    st.caption(f"Your custom values for {selected_custom_year} will be linearly interpolated to the 1990 and 2050 WHO baseline data.")
 
-        if selected_countries and selected_fuels and selected_areas:
-            st.warning("⚠️ **Data Quality Notice**: Custom projections should be based on robust data supported by peer-reviewed literature, official statistics, or reputable organizations.")
-            baseline_df = st.session_state.population_share_per_fuel_df
-            baseline_custom_year = baseline_df[
-                (baseline_df['year'] == selected_custom_year) &
-                (baseline_df['country'].isin(selected_countries)) &
-                (baseline_df['fuel'].isin(selected_fuels)) &
-                (baseline_df['area'].isin(selected_areas))
-            ][['iso3', 'country', 'region', 'area', 'fuel', 'percent_median']].copy()
+    if selected_countries and selected_fuels and selected_areas:
+        st.warning("⚠️ **Data Quality Notice**: Custom projections should be based on robust data supported by peer-reviewed literature, official statistics, or reputable organizations.")
+        baseline_df = st.session_state.population_share_per_fuel_df
+        baseline_custom_year = baseline_df[
+            (baseline_df['year'] == selected_custom_year) &
+            (baseline_df['country'].isin(selected_countries)) &
+            (baseline_df['fuel'].isin(selected_fuels)) &
+            (baseline_df['area'].isin(selected_areas))
+        ][['iso3', 'country', 'region', 'area', 'fuel', 'percent_median']].copy()
 
-            if len(baseline_custom_year) == 0:
-                st.error(f"No baseline data found for {selected_custom_year} for the selected filters.")
-                if st.button("Close"):
-                    st.session_state.show_projection_modal = False
-                    st.rerun()
-                return
+        if len(baseline_custom_year) == 0:
+            st.error(f"No baseline data found for {selected_custom_year} for the selected filters.")
+            if st.button("Close"):
+                st.rerun()
+            return
 
-            template_df = baseline_custom_year.copy()
-            template_df['percent_median'] = template_df['percent_median'].round(2)
-            template_df = template_df.rename(columns={'percent_median': 'population_share'})
+        template_df = baseline_custom_year.copy()
+        template_df['percent_median'] = template_df['percent_median'].round(2)
+        template_df = template_df.rename(columns={'percent_median': 'population_share'})
+
+        st.markdown("---")
+        st.markdown(f"**{len(template_df)} combinations** found for your selected filters.")
+
+        input_method = st.radio("Choose input method:", ["Data Editor", "Upload CSV"], horizontal=True)
+
+        if input_method == "Data Editor":
+            st.markdown("Edit the percentage values in the table below:")
+            st.caption("**Note:** `population_share` values should be between 0 and 1.")
+
+            edited_data = st.data_editor(
+                template_df,
+                disabled=['iso3', 'country', 'region', 'area', 'fuel'],
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "population_share": st.column_config.NumberColumn(
+                        f"Population Share for {selected_custom_year}",
+                        min_value=0.0, max_value=1.0, step=0.01, format="%.2f"
+                    )
+                }
+            )
 
             st.markdown("---")
-            st.markdown(f"**{len(template_df)} combinations** found for your selected filters.")
+            st.markdown("**📚 Data Source Citation (Required)**")
+            data_source_citation = st.text_area(
+                "Provide citation for your custom data:",
+                placeholder="e.g., Smith et al. (2024). 'Cooking Fuel Projections for Sub-Saharan Africa.' Energy Policy Journal. DOI: 10.xxxx/xxxxx",
+                height=100,
+                key="custom_projection_citation"
+            )
 
-            input_method = st.radio("Choose input method:", ["Data Editor", "Upload CSV"], horizontal=True)
-
-            if input_method == "Data Editor":
-                st.markdown("Edit the percentage values in the table below:")
-                st.caption("**Note:** `population_share` values should be between 0 and 1.")
-
-                edited_data = st.data_editor(
-                    template_df,
-                    disabled=['iso3', 'country', 'region', 'area', 'fuel'],
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "population_share": st.column_config.NumberColumn(
-                            f"Population Share for {selected_custom_year}",
-                            min_value=0.0, max_value=1.0, step=0.01, format="%.2f"
-                        )
-                    }
-                )
-
-                st.markdown("---")
-                st.markdown("**📚 Data Source Citation (Required)**")
-                data_source_citation = st.text_area(
-                    "Provide citation for your custom data:",
-                    placeholder="e.g., Smith et al. (2024). 'Cooking Fuel Projections for Sub-Saharan Africa.' Energy Policy Journal. DOI: 10.xxxx/xxxxx",
-                    height=100,
-                    key="custom_projection_citation"
-                )
-
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    if st.button("✅ Apply Custom Projections", type="primary", use_container_width=True):
-                        if edited_data['population_share'].isna().any():
-                            st.error("❌ Missing values detected.")
-                        elif (edited_data['population_share'] < 0).any() or (edited_data['population_share'] > 1).any():
-                            st.error("❌ Population share values must be between 0 and 1.")
-                        elif not data_source_citation or len(data_source_citation.strip()) == 0:
-                            st.error("❌ Please provide a citation.")
-                        else:
-                            edited_data_internal = edited_data.rename(columns={'population_share': 'percent_median'})
-                            st.session_state.custom_year_data = edited_data_internal
-                            st.session_state.custom_year = selected_custom_year
-                            st.session_state.custom_projection_source = data_source_citation.strip()
-                            st.session_state.use_custom_projections = True
-                            st.session_state.data_source_population_share = f"Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021), with Custom Projections (Year {selected_custom_year})"
-                            st.session_state.show_projection_modal = False
-                            st.success("✅ Custom projections applied!")
-                            st.rerun()
-                with col2:
-                    if st.button("❌ Cancel", use_container_width=True):
-                        st.session_state.show_projection_modal = False
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("✅ Apply Custom Projections", type="primary", use_container_width=True):
+                    if edited_data['population_share'].isna().any():
+                        st.error("❌ Missing values detected.")
+                    elif (edited_data['population_share'] < 0).any() or (edited_data['population_share'] > 1).any():
+                        st.error("❌ Population share values must be between 0 and 1.")
+                    elif not data_source_citation or len(data_source_citation.strip()) == 0:
+                        st.error("❌ Please provide a citation.")
+                    else:
+                        edited_data_internal = edited_data.rename(columns={'population_share': 'percent_median'})
+                        st.session_state.custom_year_data = edited_data_internal
+                        st.session_state.custom_year = selected_custom_year
+                        st.session_state.custom_projection_source = data_source_citation.strip()
+                        st.session_state.use_custom_projections = True
+                        st.session_state.data_source_population_share = f"Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021), with Custom Projections (Year {selected_custom_year})"
+                        st.success("✅ Custom projections applied!")
                         st.rerun()
+            with col2:
+                if st.button("❌ Cancel", use_container_width=True):
+                    st.rerun()
 
-            else:
-                st.markdown("Upload a CSV with the following columns:")
-                st.code("iso3, country, region, area, fuel, population_share")
-
-                template_csv = template_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download Template CSV",
-                    data=template_csv,
-                    file_name=f"projection_template_{selected_custom_year}.csv",
-                    mime="text/csv",
-                )
-
-                uploaded_csv = st.file_uploader("Upload Custom Values CSV", type=['csv'])
-
-                if uploaded_csv:
-                    try:
-                        uploaded_df = pd.read_csv(uploaded_csv)
-                        required_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'population_share']
-                        if not all(col in uploaded_df.columns for col in required_cols):
-                            st.error(f"❌ CSV must contain columns: {', '.join(required_cols)}")
-                        else:
-                            uploaded_df = uploaded_df.rename(columns={'population_share': 'percent_median'})
-                            expected_combos = set(template_df.apply(lambda row: (row['iso3'], row['area'], row['fuel']), axis=1))
-                            actual_combos = set(uploaded_df.apply(lambda row: (row['iso3'], row['area'], row['fuel']), axis=1))
-
-                            if expected_combos != actual_combos:
-                                missing = expected_combos - actual_combos
-                                extra = actual_combos - expected_combos
-                                if missing:
-                                    st.error(f"❌ Missing combinations: {missing}")
-                                if extra:
-                                    st.warning(f"⚠️ Extra combinations (will be ignored): {extra}")
-                            else:
-                                st.success("✅ CSV validated.")
-                                st.markdown("---")
-                                st.markdown("**📚 Data Source Citation (Required)**")
-                                csv_data_source_citation = st.text_area(
-                                    "Provide citation for your custom data:",
-                                    height=100,
-                                    key="custom_projection_citation_csv"
-                                )
-
-                                col1, col2 = st.columns([1, 1])
-                                with col1:
-                                    if st.button("✅ Apply Custom Projections", type="primary", use_container_width=True):
-                                        if not csv_data_source_citation or len(csv_data_source_citation.strip()) == 0:
-                                            st.error("❌ Please provide a citation.")
-                                        else:
-                                            st.session_state.custom_year_data = uploaded_df
-                                            st.session_state.custom_year = selected_custom_year
-                                            st.session_state.custom_projection_source = csv_data_source_citation.strip()
-                                            st.session_state.use_custom_projections = True
-                                            st.session_state.data_source_population_share = f"Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021), with Custom Projections (Year {selected_custom_year})"
-                                            st.session_state.show_projection_modal = False
-                                            st.rerun()
-                                with col2:
-                                    if st.button("❌ Cancel", use_container_width=True):
-                                        st.session_state.show_projection_modal = False
-                                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error reading CSV: {str(e)}")
         else:
-            st.warning("⚠️ Please select countries, fuel types, and areas before customizing projections.")
-            if st.button("Close"):
-                st.session_state.show_projection_modal = False
-                st.rerun()
+            st.markdown("Upload a CSV with the following columns:")
+            st.code("iso3, country, region, area, fuel, population_share")
 
-    show_projection_modal()
+            template_csv = template_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Template CSV",
+                data=template_csv,
+                file_name=f"projection_template_{selected_custom_year}.csv",
+                mime="text/csv",
+            )
+
+            uploaded_csv = st.file_uploader("Upload Custom Values CSV", type=['csv'])
+
+            if uploaded_csv:
+                try:
+                    uploaded_df = pd.read_csv(uploaded_csv)
+                    required_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'population_share']
+                    if not all(col in uploaded_df.columns for col in required_cols):
+                        st.error(f"❌ CSV must contain columns: {', '.join(required_cols)}")
+                    else:
+                        uploaded_df = uploaded_df.rename(columns={'population_share': 'percent_median'})
+                        expected_combos = set(template_df.apply(lambda row: (row['iso3'], row['area'], row['fuel']), axis=1))
+                        actual_combos = set(uploaded_df.apply(lambda row: (row['iso3'], row['area'], row['fuel']), axis=1))
+
+                        if expected_combos != actual_combos:
+                            missing = expected_combos - actual_combos
+                            extra = actual_combos - expected_combos
+                            if missing:
+                                st.error(f"❌ Missing combinations: {missing}")
+                            if extra:
+                                st.warning(f"⚠️ Extra combinations (will be ignored): {extra}")
+                        else:
+                            st.success("✅ CSV validated.")
+                            st.markdown("---")
+                            st.markdown("**📚 Data Source Citation (Required)**")
+                            csv_data_source_citation = st.text_area(
+                                "Provide citation for your custom data:",
+                                height=100,
+                                key="custom_projection_citation_csv"
+                            )
+
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                if st.button("✅ Apply Custom Projections", type="primary", use_container_width=True):
+                                    if not csv_data_source_citation or len(csv_data_source_citation.strip()) == 0:
+                                        st.error("❌ Please provide a citation.")
+                                    else:
+                                        st.session_state.custom_year_data = uploaded_df
+                                        st.session_state.custom_year = selected_custom_year
+                                        st.session_state.custom_projection_source = csv_data_source_citation.strip()
+                                        st.session_state.use_custom_projections = True
+                                        st.session_state.data_source_population_share = f"Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021), with Custom Projections (Year {selected_custom_year})"
+                                        st.rerun()
+                            with col2:
+                                if st.button("❌ Cancel", use_container_width=True):
+                                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error reading CSV: {str(e)}")
+    else:
+        st.warning("⚠️ Please select countries, fuel types, and areas before customizing projections.")
+        if st.button("Close"):
+            st.rerun()
 
 
 # ----------------------------------------------------------------------------
@@ -1326,10 +1282,10 @@ with st.container(border=True):
                 bcols = st.columns([1, 1, 1, 1])
                 with bcols[0]:
                     if st.button("📤 Upload custom dataset", use_container_width=True):
-                        open_modal('custom_dataset')
+                        show_custom_dataset_modal()
                 with bcols[1]:
                     if st.button("📈 Customize year projections", use_container_width=True):
-                        open_modal('projection')
+                        show_projection_modal()
                 with bcols[2]:
                     if st.session_state.get('custom_source_description'):
                         if st.button("🔄 Revert to default WHO data", use_container_width=True):
@@ -1355,7 +1311,7 @@ with st.container(border=True):
             if st.session_state.per_capita_data is None:
                 st.warning("Per-capita data not loaded.")
                 if st.button("📤 Upload custom rates", key="pc_upload_empty"):
-                    open_modal('per_capita')
+                    show_per_capita_modal()
             else:
                 per_capita_source = st.session_state.get('data_source_per_capita', 'Default Per Capita Data (Placeholder)')
                 per_capita_base_cite = st.session_state.get('per_capita_base_citation')
@@ -1454,7 +1410,7 @@ with st.container(border=True):
                 bcols = st.columns([1, 1, 2])
                 with bcols[0]:
                     if st.button("📤 Upload custom rates", use_container_width=True, key="pc_upload"):
-                        open_modal('per_capita')
+                        show_per_capita_modal()
                 with bcols[1]:
                     if st.session_state.get('per_capita_source_description'):
                         if st.button("🔄 Revert to defaults", use_container_width=True, key="pc_revert"):

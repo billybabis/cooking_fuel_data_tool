@@ -1074,7 +1074,7 @@ with st.container(border=True):
                         em_df[f'total_{ghg}'] = em_df['total_fuel_cons_tons'] * em_df[f'em_intens_{ghg}']
 
                     em_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'year',
-                               'num_fuel_users', 'total_fuel_cons_tons',
+                               'total_fuel_cons_tons',
                                'em_intens_CO2', 'em_intens_CH4', 'em_intens_N2O',
                                'total_CO2', 'total_CH4', 'total_N2O']
                     em_output_df = em_df[em_cols].copy()

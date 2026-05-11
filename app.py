@@ -867,7 +867,7 @@ st.markdown(
 )
 
 if not selected_countries:
-    st.info("👆 Select at least one country in the sidebar to view data.")
+    st.info("👈 Select at least one country in the sidebar to view data.")
     st.stop()
 
 if 'view_top_key' not in st.session_state:

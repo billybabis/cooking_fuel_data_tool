@@ -1029,7 +1029,7 @@ with st.container(border=True):
                         ],
                     }
                     pd.DataFrame(metadata_dict).to_excel(writer, index=False, sheet_name='Metadata & Sources')
-                    output_df.to_excel(writer, index=False, sheet_name='Fuel Consumption Data')
+                    output_df.assign(area=output_df['area'].str.lower()).drop(columns=['region']).to_excel(writer, index=False, sheet_name='Fuel Consumption Data')
                 buffer.seek(0)
 
                 default_filename = f"cooking_fuel_output_{start_year}_{end_year}"
@@ -1173,8 +1173,8 @@ with st.container(border=True):
                             ],
                         }
                         pd.DataFrame(em_metadata).to_excel(writer, index=False, sheet_name='Metadata & Sources')
-                        em_output_df.to_excel(writer, index=False, sheet_name='Total Emissions')
-                        em_summary_df.to_excel(writer, index=False, sheet_name='Summary by Country-Area')
+                        em_output_df.assign(area=em_output_df['area'].str.lower()).drop(columns=['region']).to_excel(writer, index=False, sheet_name='Total Emissions')
+                        em_summary_df.assign(area=em_summary_df['area'].str.lower()).drop(columns=['region']).to_excel(writer, index=False, sheet_name='Summary by Country-Area')
                     em_buffer.seek(0)
 
                     em_default_filename = f"cooking_fuel_emissions_{start_year}_{end_year}"

@@ -8,7 +8,7 @@ For a higher-level overview of the tool's purpose, data sources, and assumptions
 
 - Select countries, fuel types, urban/rural areas, and a year range (1990–2050)
 - Compute the number of users of each fuel: `population_share × total_population`
-- Compute total fuel consumption: `num_fuel_users × per_capita_consumption`
+- Compute total fuel consumption: `num_fuel_users_thousands × per_capita_consumption`
 - Compute total emissions (CO₂, CH₄, N₂O) and CO₂-equivalent using IPCC AR5 GWP-100 factors (CH₄ = 28, N₂O = 265 — UNFCCC Enhanced Transparency Framework default, post-2024)
 - Apply a configurable wood-to-charcoal kiln-yield factor so charcoal totals can be reported in fuelwood-equivalent biomass (default 6:1)
 - Edit fuel-share and per-capita values inline (paste from Excel supported), or upload custom datasets
@@ -101,15 +101,17 @@ Per-country Combined Margin grid emission factor for electricity consumption. Th
 | Column | Meaning |
 |---|---|
 | `iso3, country, region, area, fuel, year` | Identifiers |
-| `num_fuel_users` | Number of people using this fuel (`population_share × total_population`) |
+| `num_fuel_users_thousands` | Number of people using this fuel, **in thousands** (`population_share × total_population`). UN population figures are in thousands and are not rescaled — multiply by 1,000 for absolute people. |
 | `per_capita_fuel_cons` | Per-capita rate from the per-capita data (units vary by fuel — see file 4 above) |
-| `total_fuel_cons_tons` | `num_fuel_users × per_capita_fuel_cons`; for **charcoal** rows, additionally multiplied by the kiln-yield factor so the value represents upstream fuelwood biomass, not charcoal at the stove |
+| `total_fuel_cons_tons` | `num_fuel_users_thousands × per_capita_fuel_cons`, so values are **in thousands of tons** (multiply by 1,000 for absolute tons); for **charcoal** rows, additionally multiplied by the kiln-yield factor so the value represents upstream fuelwood biomass, not charcoal at the stove |
+
+> **Units note:** because UN population is expressed in thousands and is not rescaled, `num_fuel_users_thousands` and every `total_*` column (consumption and emissions) are in **thousands**. Multiply by 1,000 for absolute people / tons.
 
 ### Total emissions
 
 Two views in the app:
 
-- **Per-fuel detail** — `total_fuel_cons_tons`, `em_intens_{CO2,CH4,N2O}`, and `total_{CO2,CH4,N2O}` per `iso3 × area × fuel × year`. `total_GHG = total_fuel_cons_tons × em_intens_GHG`. All `total_*` columns are in tons of GHG.
+- **Per-fuel detail** — `total_fuel_cons_tons`, `em_intens_{CO2,CH4,N2O}`, and `total_{CO2,CH4,N2O}` per `iso3 × area × fuel × year`. `total_GHG = total_fuel_cons_tons × em_intens_GHG`. All `total_*` columns are in **thousands of tons** of GHG (multiply by 1,000 for absolute tons).
 - **Country / area summary (CO₂-eq)** — emissions summed across all fuels per `iso3 × area × year`, plus `total_CO2eq = total_CO2 + 28 × total_CH4 + 265 × total_N2O`.
 
 Excel downloads include a `Metadata & Sources` sheet capturing the active sources, citations, year range, filters, charcoal factor, and whether in-app edits were made during the session.
@@ -118,14 +120,15 @@ Excel downloads include a `Metadata & Sources` sheet capturing the active source
 
 **Stage 1 — number of fuel users:**
 ```
-num_fuel_users = population_share × total_population
+num_fuel_users_thousands = population_share × total_population
 ```
-joined on `iso3 + area + year`.
+joined on `iso3 + area + year`. `total_population` is in thousands (UN convention, not rescaled), so the result is in thousands of people.
 
 **Stage 2 — total fuel consumption:**
 ```
-total_fuel_cons_tons = num_fuel_users × per_capita_fuel_cons
+total_fuel_cons_tons = num_fuel_users_thousands × per_capita_fuel_cons
 ```
+(in thousands of tons, since the headcount is in thousands)
 joined on `region + fuel`. For charcoal, additionally multiplied by the kiln-yield factor (default 6) so the output represents upstream wood biomass.
 
 **Stage 3 — emissions:**

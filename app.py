@@ -923,12 +923,12 @@ with st.container(border=True):
             final_output['total_fuel_cons_tons'] = final_output['fuel_users_median'] * final_output['pc_fuel']
             # Charcoal → fuelwood-equivalence multiplier is applied below, inside sub_consumption
             final_output = final_output.rename(columns={
-                'fuel_users_median': 'num_fuel_users',
+                'fuel_users_median': 'num_fuel_users_thousands',
                 'pc_fuel': 'per_capita_fuel_cons',
             })
 
             out_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'year',
-                        'num_fuel_users', 'per_capita_fuel_cons', 'total_fuel_cons_tons']
+                        'num_fuel_users_thousands', 'per_capita_fuel_cons', 'total_fuel_cons_tons']
             output_df = final_output[out_cols].copy()
 
             # Shared filename-sanitization charset
@@ -950,7 +950,7 @@ with st.container(border=True):
 
                 charcoal_mask = output_df['fuel'].astype(str).str.lower() == 'charcoal'
                 output_df.loc[charcoal_mask, 'total_fuel_cons_tons'] = (
-                    output_df.loc[charcoal_mask, 'num_fuel_users']
+                    output_df.loc[charcoal_mask, 'num_fuel_users_thousands']
                     * output_df.loc[charcoal_mask, 'per_capita_fuel_cons']
                     * charcoal_multiplier
                 )
@@ -959,7 +959,9 @@ with st.container(border=True):
                 st.dataframe(output_df.head(500), hide_index=True, height=500, use_container_width=True)
                 st.caption(
                     f"Showing first 500 of {len(output_df):,} rows. "
-                    "**Units note:** `per_capita_fuel_cons` units vary by fuel — MWh/person-year for electric, "
+                    "**Units note:** `num_fuel_users_thousands` and `total_fuel_cons_tons` are both in **thousands** "
+                    "(UN population is in thousands and is not rescaled — multiply by 1,000 for absolute people / tons). "
+                    "`per_capita_fuel_cons` units vary by fuel — MWh/person-year for electric, "
                     "oven-dry tons/person-year for fuelwood and imp_fuelwood, and tons/person-year for the remaining fuels. "
                     "`total_fuel_cons_tons` inherits these per-fuel units. "
                     f"**Charcoal rows:** `total_fuel_cons_tons` is reported in **tons of fuelwood-equivalent biomass** "
@@ -1007,6 +1009,7 @@ with st.container(border=True):
                             'Per Capita Citation',
                             'Per Capita — In-App Edits',
                             'Charcoal → Fuelwood Equivalence Factor',
+                            'Units — Scale (thousands)',
                             'Units (per_capita_fuel_cons / total_fuel_cons_tons)',
                             'Notes',
                         ],
@@ -1024,6 +1027,7 @@ with st.container(border=True):
                             st.session_state.get('per_capita_citation') or st.session_state.get('per_capita_base_citation', 'N/A'),
                             'Yes (rows edited inline during this session)' if st.session_state.get('user_edited_per_capita') else 'No',
                             f"{charcoal_multiplier:g} (applied to charcoal total_fuel_cons_tons only)",
+                            'num_fuel_users_thousands and total_fuel_cons_tons are both expressed in THOUSANDS (UN population figures are in thousands and are not rescaled). Multiply by 1,000 for absolute people / tons.',
                             'MWh/person-year for electric; oven-dry tons/person-year for fuelwood and imp_fuelwood; tons/person-year for all other fuels.',
                             'All custom data should be supported by peer-reviewed literature or official statistics.',
                         ],
@@ -1106,7 +1110,7 @@ with st.container(border=True):
                         st.caption(
                             f"Showing first 500 of {len(em_output_df):,} rows. "
                             "**Calculation:** `total_GHG = total_fuel_cons_tons × em_intens_GHG` per row. "
-                            "**Units:** all `total_*` columns are in **tons of GHG**. "
+                            "**Units:** all `total_*` columns are in **thousands of tons of GHG** (multiply by 1,000 for absolute tons). "
                             "Non-electric: intensities are mass ratios (kg GHG / kg fuel = tons/ton). "
                             "Electric: source values are gCO2/kWh and divided by 1000 at load (= tons CO2 / MWh), so the multiplication directly yields tons. "
                             "**CH4 and N2O for electricity are 0** — country-level data not available; those gases contribute <5% of CO2-eq for most grids."
@@ -1119,7 +1123,7 @@ with st.container(border=True):
                             "Aggregated by country / area / year, summing emissions across all fuels. "
                             f"**`total_CO2eq` = total_CO2 + {GWP_CH4} × total_CH4 + {GWP_N2O} × total_N2O** "
                             "(IPCC AR5 GWP-100, the UNFCCC Enhanced Transparency Framework default). "
-                            "**Units:** all columns in **tons**."
+                            "**Units:** all emissions columns in **thousands of tons** (multiply by 1,000 for absolute tons)."
                         )
 
                     missing_em = em_output_df[em_output_df['em_intens_CO2'].isna()]
@@ -1151,6 +1155,7 @@ with st.container(border=True):
                                 'Non-Electric Emissions Source',
                                 'Electricity Emissions Source',
                                 'Charcoal → Fuelwood Equivalence Factor',
+                                'Units — Scale (thousands)',
                                 'Calculation',
                                 'CO2-eq Calculation',
                                 'GWP Source',
@@ -1166,10 +1171,11 @@ with st.container(border=True):
                                 'Per-fuel emissions intensities for all countries (Electricity row ignored)',
                                 'Per-country Combined Margin grid emission factor, gCO2/kWh; CO2 only — CH4/N2O set to 0. Source: UNFCCC — IFI TWG List of Methodologies (https://unfccc.int/climate-action/sectoral-engagement/ifis-harmonization-of-standards-for-ghg-accounting/ifi-twg-list-of-methodologies)',
                                 f"{charcoal_multiplier:g} (applied to charcoal total_fuel_cons_tons only)",
+                                'total_fuel_cons_tons and all total_* emissions columns are expressed in THOUSANDS (UN population figures are in thousands and are not rescaled). Multiply by 1,000 for absolute tons.',
                                 'total_GHG = total_fuel_cons_tons × em_intens_GHG',
                                 f'total_CO2eq = total_CO2 + {GWP_CH4} × total_CH4 + {GWP_N2O} × total_N2O',
                                 'IPCC AR5 GWP-100 (UNFCCC Enhanced Transparency Framework default, post-2024)',
-                                'All total_* columns are in tons of GHG. Non-electric: intensities are mass ratios (kg/kg). Electric: source gCO2/kWh / 1000 = tons CO2 / MWh, applied to total_fuel_cons_tons (MWh for electric rows). CH4 and N2O for electricity are 0 (data unavailable; <5% of CO2-eq). The "Summary by Country-Area" sheet aggregates emissions across all fuels per country/area/year.',
+                                'All total_* columns are in THOUSANDS of tons of GHG (see Units — Scale row). Non-electric: intensities are mass ratios (kg/kg). Electric: source gCO2/kWh / 1000 = tons CO2 / MWh, applied to total_fuel_cons_tons (MWh for electric rows). CH4 and N2O for electricity are 0 (data unavailable; <5% of CO2-eq). The "Summary by Country-Area" sheet aggregates emissions across all fuels per country/area/year.',
                             ],
                         }
                         pd.DataFrame(em_metadata).to_excel(writer, index=False, sheet_name='Metadata & Sources')

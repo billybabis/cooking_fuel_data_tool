@@ -55,7 +55,7 @@ def load_one_dataset(local_fname, header_names=['iso3', 'country', 'region', 'ar
                     df.columns = [c.strip().lower().replace('"','') for c in df.columns]
                     if 'area' in df.columns:
                         df['area'] = df['area'].str.strip().str.lower().map({
-                            'urban': 'Urban', 'rural': 'Rural'
+                            'urban': 'urban', 'rural': 'rural', 'overall': 'overall'
                         })
                     return df
                 else:
@@ -105,6 +105,16 @@ def load_default_population_data():
     pop_long_df["year"] = pop_long_df["year"].astype(int)
     pop_long_df["population"] = pop_long_df["population"].astype(str).str.replace(" ", "", regex=False)
     pop_long_df["population"] = pd.to_numeric(pop_long_df["population"], errors="coerce")
+
+    # Synthesize an "overall" area (urban + rural) so the WHO "Overall" fuel-share
+    # rows have a matching total population to multiply against. The source file
+    # provides only urban/rural; min_count=1 keeps the sum NaN only if both are missing.
+    overall_pop = (
+        pop_long_df.groupby(["iso3", "country", "year"], as_index=False)["population"]
+        .sum(min_count=1)
+    )
+    overall_pop["area"] = "overall"
+    pop_long_df = pd.concat([pop_long_df, overall_pop], ignore_index=True)
     return pop_long_df
 
 @st.cache_data
@@ -220,7 +230,7 @@ def load_em_intens_electricity():
     factor, gCO2/kWh — header text says kgCO2/kWh but the values are physically
     consistent with grams, not kilograms). Divided by 1000 at load time so the
     stored value is in tons CO2 / MWh, which makes the per-row math
-    `total_fuel_cons_tons (MWh) × em_intens_CO2 (tCO2/MWh) = tons CO2`
+    `fuel_cons_tons (MWh) × em_intens_CO2 (tCO2/MWh) = tons CO2`
     align directly with non-electric rows.
 
     CH4 and N2O are set to 0 — data not available, and for electricity these
@@ -389,12 +399,12 @@ with st.sidebar:
         selected_fuels = available_fuels
     selected_areas = st.multiselect(
         "Areas",
-        options=['Urban', 'Rural'],
-        default=['Urban', 'Rural'],
+        options=['urban', 'rural', 'overall'],
+        default=['urban', 'rural', 'overall'],
         key="filt_areas",
     )
     if not selected_areas:
-        selected_areas = ['Urban', 'Rural']
+        selected_areas = ['urban', 'rural', 'overall']
     year_range = st.slider(
         "Year range",
         min_value=1990, max_value=2050,
@@ -485,6 +495,8 @@ def show_custom_dataset_modal():
                             new_df = new_df.rename(columns={'population_share': 'percent_median'})
                         new_df['fuel'] = new_df['fuel'].astype(str).str.strip().str.lower()
                         new_df['fuel'] = new_df['fuel'].replace({'biomass': 'fuelwood', 'electricity': 'electric'})
+                        if 'area' in new_df.columns:
+                            new_df['area'] = new_df['area'].astype(str).str.strip().str.lower()
                         # Re-derive region from country_codes for canonical taxonomy
                         iso3_to_region = get_iso3_to_region()
                         new_df['region'] = new_df['iso3'].map(iso3_to_region)
@@ -796,13 +808,12 @@ if selected_countries and st.session_state.get('population_share_per_fuel_df') i
         (pop_share_per_fuel_df['fuel'].isin(selected_fuels)) &
         (pop_share_per_fuel_df['area'].isin(selected_areas)) &
         (pop_share_per_fuel_df['year'] >= start_year) &
-        (pop_share_per_fuel_df['year'] <= end_year) &
-        (pop_share_per_fuel_df['area'] != 'Overall')
+        (pop_share_per_fuel_df['year'] <= end_year)
     ]
     filtered_headcount_data_per_fuel = update_headcount_data(filtered_data,
                                                              st.session_state.population_df)
     filtered_headcount_data_per_fuel = filtered_headcount_data_per_fuel[
-        filtered_headcount_data_per_fuel['area'].isin(['Urban', 'Rural'])
+        filtered_headcount_data_per_fuel['area'].isin(['urban', 'rural', 'overall'])
     ]
 else:
     filtered_data = pd.DataFrame()
@@ -920,7 +931,7 @@ with st.container(border=True):
             ).drop(columns=['_fuel_join'])
 
             final_output['pc_fuel'] = pd.to_numeric(final_output['pc_fuel'], errors='coerce')
-            final_output['total_fuel_cons_tons'] = final_output['fuel_users_median'] * final_output['pc_fuel']
+            final_output['fuel_cons_tons'] = final_output['fuel_users_median'] * final_output['pc_fuel']
             # Charcoal → fuelwood-equivalence multiplier is applied below, inside sub_consumption
             final_output = final_output.rename(columns={
                 'fuel_users_median': 'num_fuel_users_thousands',
@@ -928,7 +939,7 @@ with st.container(border=True):
             })
 
             out_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'year',
-                        'num_fuel_users_thousands', 'per_capita_fuel_cons', 'total_fuel_cons_tons']
+                        'num_fuel_users_thousands', 'per_capita_fuel_cons', 'fuel_cons_tons']
             output_df = final_output[out_cols].copy()
 
             # Shared filename-sanitization charset
@@ -949,7 +960,7 @@ with st.container(border=True):
                     charcoal_multiplier = 6.0
 
                 charcoal_mask = output_df['fuel'].astype(str).str.lower() == 'charcoal'
-                output_df.loc[charcoal_mask, 'total_fuel_cons_tons'] = (
+                output_df.loc[charcoal_mask, 'fuel_cons_tons'] = (
                     output_df.loc[charcoal_mask, 'num_fuel_users_thousands']
                     * output_df.loc[charcoal_mask, 'per_capita_fuel_cons']
                     * charcoal_multiplier
@@ -959,12 +970,12 @@ with st.container(border=True):
                 st.dataframe(output_df.head(500), hide_index=True, height=500, use_container_width=True)
                 st.caption(
                     f"Showing first 500 of {len(output_df):,} rows. "
-                    "**Units note:** `num_fuel_users_thousands` and `total_fuel_cons_tons` are both in **thousands** "
+                    "**Units note:** `num_fuel_users_thousands` and `fuel_cons_tons` are both in **thousands** "
                     "(UN population is in thousands and is not rescaled — multiply by 1,000 for absolute people / tons). "
                     "`per_capita_fuel_cons` units vary by fuel — MWh/person-year for electric, "
                     "oven-dry tons/person-year for fuelwood and imp_fuelwood, and tons/person-year for the remaining fuels. "
-                    "`total_fuel_cons_tons` inherits these per-fuel units. "
-                    f"**Charcoal rows:** `total_fuel_cons_tons` is reported in **tons of fuelwood-equivalent biomass** "
+                    "`fuel_cons_tons` inherits these per-fuel units. "
+                    f"**Charcoal rows:** `fuel_cons_tons` is reported in **tons of fuelwood-equivalent biomass** "
                     f"(charcoal mass × {charcoal_multiplier:g} kiln-yield factor — set in the *Per-capita rates* input tab), not charcoal at the stove."
                 )
 
@@ -1010,7 +1021,7 @@ with st.container(border=True):
                             'Per Capita — In-App Edits',
                             'Charcoal → Fuelwood Equivalence Factor',
                             'Units — Scale (thousands)',
-                            'Units (per_capita_fuel_cons / total_fuel_cons_tons)',
+                            'Units (per_capita_fuel_cons / fuel_cons_tons)',
                             'Notes',
                         ],
                         'Value': [
@@ -1026,8 +1037,8 @@ with st.container(border=True):
                             st.session_state.get('data_source_per_capita', 'Default Per Capita Data (Placeholder)'),
                             st.session_state.get('per_capita_citation') or st.session_state.get('per_capita_base_citation', 'N/A'),
                             'Yes (rows edited inline during this session)' if st.session_state.get('user_edited_per_capita') else 'No',
-                            f"{charcoal_multiplier:g} (applied to charcoal total_fuel_cons_tons only)",
-                            'num_fuel_users_thousands and total_fuel_cons_tons are both expressed in THOUSANDS (UN population figures are in thousands and are not rescaled). Multiply by 1,000 for absolute people / tons.',
+                            f"{charcoal_multiplier:g} (applied to charcoal fuel_cons_tons only)",
+                            'num_fuel_users_thousands and fuel_cons_tons are both expressed in THOUSANDS (UN population figures are in thousands and are not rescaled). Multiply by 1,000 for absolute people / tons.',
                             'MWh/person-year for electric; oven-dry tons/person-year for fuelwood and imp_fuelwood; tons/person-year for all other fuels.',
                             'All custom data should be supported by peer-reviewed literature or official statistics.',
                         ],
@@ -1075,10 +1086,10 @@ with st.container(border=True):
 
                     # Compute totals
                     for ghg in ['CO2', 'CH4', 'N2O']:
-                        em_df[f'total_{ghg}'] = em_df['total_fuel_cons_tons'] * em_df[f'em_intens_{ghg}']
+                        em_df[f'total_{ghg}'] = em_df['fuel_cons_tons'] * em_df[f'em_intens_{ghg}']
 
                     em_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'year',
-                               'total_fuel_cons_tons',
+                               'fuel_cons_tons',
                                'em_intens_CO2', 'em_intens_CH4', 'em_intens_N2O',
                                'total_CO2', 'total_CH4', 'total_N2O']
                     em_output_df = em_df[em_cols].copy()
@@ -1109,7 +1120,7 @@ with st.container(border=True):
                         st.dataframe(em_output_df.head(500), hide_index=True, height=500, use_container_width=True)
                         st.caption(
                             f"Showing first 500 of {len(em_output_df):,} rows. "
-                            "**Calculation:** `total_GHG = total_fuel_cons_tons × em_intens_GHG` per row. "
+                            "**Calculation:** `total_GHG = fuel_cons_tons × em_intens_GHG` per row. "
                             "**Units:** all `total_*` columns are in **thousands of tons of GHG** (multiply by 1,000 for absolute tons). "
                             "Non-electric: intensities are mass ratios (kg GHG / kg fuel = tons/ton). "
                             "Electric: source values are gCO2/kWh and divided by 1000 at load (= tons CO2 / MWh), so the multiplication directly yields tons. "
@@ -1170,12 +1181,12 @@ with st.container(border=True):
                                 ', '.join(selected_areas),
                                 'Per-fuel emissions intensities for all countries (Electricity row ignored)',
                                 'Per-country Combined Margin grid emission factor, gCO2/kWh; CO2 only — CH4/N2O set to 0. Source: UNFCCC — IFI TWG List of Methodologies (https://unfccc.int/climate-action/sectoral-engagement/ifis-harmonization-of-standards-for-ghg-accounting/ifi-twg-list-of-methodologies)',
-                                f"{charcoal_multiplier:g} (applied to charcoal total_fuel_cons_tons only)",
-                                'total_fuel_cons_tons and all total_* emissions columns are expressed in THOUSANDS (UN population figures are in thousands and are not rescaled). Multiply by 1,000 for absolute tons.',
-                                'total_GHG = total_fuel_cons_tons × em_intens_GHG',
+                                f"{charcoal_multiplier:g} (applied to charcoal fuel_cons_tons only)",
+                                'fuel_cons_tons and all total_* emissions columns are expressed in THOUSANDS (UN population figures are in thousands and are not rescaled). Multiply by 1,000 for absolute tons.',
+                                'total_GHG = fuel_cons_tons × em_intens_GHG',
                                 f'total_CO2eq = total_CO2 + {GWP_CH4} × total_CH4 + {GWP_N2O} × total_N2O',
                                 'IPCC AR5 GWP-100 (UNFCCC Enhanced Transparency Framework default, post-2024)',
-                                'All total_* columns are in THOUSANDS of tons of GHG (see Units — Scale row). Non-electric: intensities are mass ratios (kg/kg). Electric: source gCO2/kWh / 1000 = tons CO2 / MWh, applied to total_fuel_cons_tons (MWh for electric rows). CH4 and N2O for electricity are 0 (data unavailable; <5% of CO2-eq). The "Summary by Country-Area" sheet aggregates emissions across all fuels per country/area/year.',
+                                'All total_* columns are in THOUSANDS of tons of GHG (see Units — Scale row). Non-electric: intensities are mass ratios (kg/kg). Electric: source gCO2/kWh / 1000 = tons CO2 / MWh, applied to fuel_cons_tons (MWh for electric rows). CH4 and N2O for electricity are 0 (data unavailable; <5% of CO2-eq). The "Summary by Country-Area" sheet aggregates emissions across all fuels per country/area/year.',
                             ],
                         }
                         pd.DataFrame(em_metadata).to_excel(writer, index=False, sheet_name='Metadata & Sources')
@@ -1375,7 +1386,7 @@ with st.container(border=True):
                         label_visibility="collapsed",
                         help=(
                             "Kilograms of dry wood needed to produce 1 kg of charcoal in a kiln. "
-                            "In the Outputs tab, charcoal rows of `total_fuel_cons_tons` are multiplied by this factor "
+                            "In the Outputs tab, charcoal rows of `fuel_cons_tons` are multiplied by this factor "
                             "so they represent the upstream wood biomass that was felled and burned to make the charcoal — "
                             "the right number for forest-impact / biomass-supply analyses. "
                             "Default 6 reflects a typical traditional earthen-kiln yield in sub-Saharan Africa (FAO regional reference). "
@@ -1385,7 +1396,7 @@ with st.container(border=True):
                 st.caption(
                     "**Why this matters:** charcoal kilns waste most of their input wood as heat. "
                     "A factor of 6 means producing 1 ton of charcoal consumes ~6 tons of dry wood. "
-                    "In the Outputs tab, charcoal rows of `total_fuel_cons_tons` count this upstream "
+                    "In the Outputs tab, charcoal rows of `fuel_cons_tons` count this upstream "
                     "wood biomass, not charcoal mass at the stove."
                     "Wood-to-charcoal conversion efficiencies vary widely. The recent [UNFCCC fNRB "
                     "assessment](https://cdm.unfccc.int/DNA/fNRB/index.html), which was used to derive "

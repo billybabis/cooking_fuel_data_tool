@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import zipfile
 from io import BytesIO
 
 # IPCC AR5 GWP-100 factors (UNFCCC Enhanced Transparency Framework default, post-2024)
@@ -55,7 +56,7 @@ def load_one_dataset(local_fname, header_names=['iso3', 'country', 'region', 'ar
                     df.columns = [c.strip().lower().replace('"','') for c in df.columns]
                     if 'area' in df.columns:
                         df['area'] = df['area'].str.strip().str.lower().map({
-                            'urban': 'urban', 'rural': 'rural', 'overall': 'overall'
+                            'urban': 'urban', 'rural': 'rural'
                         })
                     return df
                 else:
@@ -105,16 +106,6 @@ def load_default_population_data():
     pop_long_df["year"] = pop_long_df["year"].astype(int)
     pop_long_df["population"] = pop_long_df["population"].astype(str).str.replace(" ", "", regex=False)
     pop_long_df["population"] = pd.to_numeric(pop_long_df["population"], errors="coerce")
-
-    # Synthesize an "overall" area (urban + rural) so the WHO "Overall" fuel-share
-    # rows have a matching total population to multiply against. The source file
-    # provides only urban/rural; min_count=1 keeps the sum NaN only if both are missing.
-    overall_pop = (
-        pop_long_df.groupby(["iso3", "country", "year"], as_index=False)["population"]
-        .sum(min_count=1)
-    )
-    overall_pop["area"] = "overall"
-    pop_long_df = pd.concat([pop_long_df, overall_pop], ignore_index=True)
     return pop_long_df
 
 @st.cache_data
@@ -123,6 +114,8 @@ def load_default_population_share_fuel_data():
     header_names = ['iso3', 'country', 'region', 'area', 'fuel', 'year',
                     'percent_lower95', 'percent_median', 'percent_upper95']
     df = load_one_dataset(fname, header_names)
+    # Discard the source "Overall" rows; "overall" is derived downstream as urban + rural.
+    df = df[df['area'].isin(['urban', 'rural'])].reset_index(drop=True)
     df['year'] = df['year'].astype(int)
     df['percent_median'] = pd.to_numeric(df['percent_median'], errors='coerce')
     if 'percent_lower95' in df.columns:
@@ -408,7 +401,7 @@ with st.sidebar:
     year_range = st.slider(
         "Year range",
         min_value=1990, max_value=2050,
-        value=(2020, 2030), step=1,
+        value=(2000, 2050), step=1,
         key="filt_years",
     )
 
@@ -497,6 +490,8 @@ def show_custom_dataset_modal():
                         new_df['fuel'] = new_df['fuel'].replace({'biomass': 'fuelwood', 'electricity': 'electric'})
                         if 'area' in new_df.columns:
                             new_df['area'] = new_df['area'].astype(str).str.strip().str.lower()
+                            # "overall" is derived downstream as urban + rural; drop any source rows.
+                            new_df = new_df[new_df['area'].isin(['urban', 'rural'])].reset_index(drop=True)
                         # Re-derive region from country_codes for canonical taxonomy
                         iso3_to_region = get_iso3_to_region()
                         new_df['region'] = new_df['iso3'].map(iso3_to_region)
@@ -804,17 +799,34 @@ if selected_countries and st.session_state.get('population_share_per_fuel_df') i
     else:
         pop_share_per_fuel_df = st.session_state.population_share_per_fuel_df
 
+    # Pull urban + rural rows regardless of selected_areas — we always need both to
+    # build the "overall" row by summation. Apply the area filter only at the end.
     filtered_data = pop_share_per_fuel_df[
         (pop_share_per_fuel_df['country'].isin(selected_countries)) &
         (pop_share_per_fuel_df['fuel'].isin(selected_fuels)) &
-        (pop_share_per_fuel_df['area'].isin(selected_areas)) &
+        (pop_share_per_fuel_df['area'].isin(['urban', 'rural'])) &
         (pop_share_per_fuel_df['year'] >= start_year) &
         (pop_share_per_fuel_df['year'] <= end_year)
     ]
     filtered_headcount_data_per_fuel = update_headcount_data(filtered_data,
                                                              st.session_state.population_df)
+
+    # Synthesize "overall" headcount rows as urban + rural per (iso3, country, region, fuel, year).
+    # This enforces overall = urban + rural; the source "Overall" rows are ignored upstream.
+    overall_rows = (
+        filtered_headcount_data_per_fuel
+        .groupby(['iso3', 'country', 'region', 'fuel', 'year'], as_index=False)['fuel_users_median']
+        .sum(min_count=1)
+    )
+    overall_rows['area'] = 'overall'
+    filtered_headcount_data_per_fuel = pd.concat(
+        [filtered_headcount_data_per_fuel,
+         overall_rows[filtered_headcount_data_per_fuel.columns]],
+        ignore_index=True
+    )
+
     filtered_headcount_data_per_fuel = filtered_headcount_data_per_fuel[
-        filtered_headcount_data_per_fuel['area'].isin(['urban', 'rural', 'overall'])
+        filtered_headcount_data_per_fuel['area'].isin(selected_areas)
     ]
 else:
     filtered_data = pd.DataFrame()
@@ -970,7 +982,7 @@ with st.container(border=True):
                 )
 
                 st.write(f"Total rows: {len(output_df):,}")
-                st.dataframe(output_df.drop(columns=['region']).head(500), hide_index=True, height=500, use_container_width=True)
+                st.dataframe(output_df.drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')).head(500), hide_index=True, height=500, use_container_width=True)
                 st.caption(
                     f"Showing first 500 of {len(output_df):,} rows. "
                     "**Units note:** `num_fuel_users_thousands` is in **thousands of people** "
@@ -1050,7 +1062,7 @@ with st.container(border=True):
                         ],
                     }
                     pd.DataFrame(metadata_dict).to_excel(writer, index=False, sheet_name='Metadata & Sources')
-                    output_df.assign(area=output_df['area'].str.lower()).drop(columns=['region']).to_excel(writer, index=False, sheet_name='Fuel Consumption Data')
+                    output_df.assign(area=output_df['area'].str.lower()).drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')).to_excel(writer, index=False, sheet_name='Fuel Consumption Data')
                 buffer.seek(0)
 
                 default_filename = f"cooking_fuel_output_{start_year}_{end_year}"
@@ -1061,14 +1073,76 @@ with st.container(border=True):
                     help="Edit the name before downloading. Illegal filename characters are removed automatically.",
                 )
                 sanitized = ''.join(c for c in (filename_input or default_filename).strip() if c not in illegal) or default_filename
-                final_name = sanitized if sanitized.lower().endswith('.xlsx') else f"{sanitized}.xlsx"
+                stem = sanitized[:-5] if sanitized.lower().endswith('.xlsx') else sanitized
+                xlsx_name = f"{stem}.xlsx"
+                zip_name = f"{stem}.zip"
 
-                st.download_button(
-                    label="📥 Download Excel Workbook",
-                    data=buffer,
-                    file_name=final_name,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                # Build the CSV-bundle ZIP (data.csv + description.txt + parameters.csv)
+                def _metadata_to_text(d):
+                    title = "Cooking Fuel Data Tool — Run Metadata"
+                    lines = [
+                        title,
+                        "=" * len(title),
+                        "",
+                        "Human-readable description of the run that produced data.csv.",
+                        "The same fields appear (in tabular form) on the \"Metadata & Sources\"",
+                        "sheet of the Excel export.",
+                        "",
+                    ]
+                    for field, value in zip(d['Field'], d['Value']):
+                        # Collapse newlines inside values so each field stays on one line.
+                        safe = str(value).replace('\n', ' ')
+                        lines.append(f"{field}: {safe}")
+                    return '\n'.join(lines) + '\n'
+
+                def _build_parameters_df():
+                    rows = [
+                        ('generation_date', pd.Timestamp.now().isoformat(timespec='seconds')),
+                        ('start_year', start_year),
+                        ('end_year', end_year),
+                        ('countries', ', '.join(selected_countries)),
+                        ('fuels', ', '.join(selected_fuels)),
+                        ('areas', ', '.join(selected_areas)),
+                        ('efchratio', f"{charcoal_multiplier:g}"),
+                        ('population_share_user_edited',
+                         'true' if st.session_state.get('user_edited_shares') else 'false'),
+                        ('per_capita_user_edited',
+                         'true' if st.session_state.get('user_edited_per_capita') else 'false'),
+                    ]
+                    return pd.DataFrame(rows, columns=['key', 'value'])
+
+                data_csv_df = (
+                    output_df
+                    .assign(area=output_df['area'].str.lower())
+                    .drop(columns=['region'])
+                    .assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64'))
                 )
+
+                zip_buf = BytesIO()
+                with zipfile.ZipFile(zip_buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr('data.csv', data_csv_df.to_csv(index=False))
+                    zf.writestr('description.txt', _metadata_to_text(metadata_dict))
+                    zf.writestr('parameters.csv', _build_parameters_df().to_csv(index=False))
+                zip_buf.seek(0)
+
+                col_xlsx, col_zip = st.columns([1, 1])
+                with col_xlsx:
+                    st.download_button(
+                        label="📥 Download Excel Workbook",
+                        data=buffer,
+                        file_name=xlsx_name,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                with col_zip:
+                    st.download_button(
+                        label="📦 Download CSV Bundle (.zip)",
+                        data=zip_buf,
+                        file_name=zip_name,
+                        mime="application/zip",
+                        use_container_width=True,
+                        help="ZIP containing data.csv (the data), description.txt (sources, citations, units), and parameters.csv (machine-readable run parameters).",
+                    )
 
             with sub_emissions:
                 em_no_elec = load_em_intens_no_elec()
@@ -1123,7 +1197,7 @@ with st.container(border=True):
 
                     if em_view == "Per-fuel detail":
                         st.write(f"Total rows: {len(em_output_df):,}")
-                        st.dataframe(em_output_df.drop(columns=['region']).head(500), hide_index=True, height=500, use_container_width=True)
+                        st.dataframe(em_output_df.drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')).head(500), hide_index=True, height=500, use_container_width=True)
                         st.caption(
                             f"Showing first 500 of {len(em_output_df):,} rows. "
                             "**Calculation:** `total_GHG = fuel_cons_tons × em_intens_GHG` per row. "
@@ -1196,7 +1270,7 @@ with st.container(border=True):
                             ],
                         }
                         pd.DataFrame(em_metadata).to_excel(writer, index=False, sheet_name='Metadata & Sources')
-                        em_output_df.assign(area=em_output_df['area'].str.lower()).drop(columns=['region']).to_excel(writer, index=False, sheet_name='Total Emissions')
+                        em_output_df.assign(area=em_output_df['area'].str.lower()).drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')).to_excel(writer, index=False, sheet_name='Total Emissions')
                         em_summary_df.assign(area=em_summary_df['area'].str.lower()).drop(columns=['region']).to_excel(writer, index=False, sheet_name='Summary by Country-Area')
                     em_buffer.seek(0)
 

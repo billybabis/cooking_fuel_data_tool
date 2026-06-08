@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import zipfile
 from io import BytesIO
 
 # IPCC AR5 GWP-100 factors (UNFCCC Enhanced Transparency Framework default, post-2024)
@@ -398,14 +397,15 @@ with st.sidebar:
     )
     if not selected_areas:
         selected_areas = ['urban', 'rural', 'overall']
-    year_range = st.slider(
-        "Year range",
-        min_value=1990, max_value=2050,
-        value=(2000, 2050), step=1,
-        key="filt_years",
+    end_year = st.selectbox(
+        "End year",
+        options=[2020, 2030, 2035, 2040, 2050],
+        index=4,  # default 2050
+        key="filt_end_year",
+        help="Start year is fixed at 2000.",
     )
 
-start_year, end_year = year_range
+start_year = 2000
 
 
 # ----------------------------------------------------------------------------
@@ -954,7 +954,11 @@ with st.container(border=True):
 
             out_cols = ['iso3', 'country', 'region', 'area', 'fuel', 'year',
                         'num_fuel_users_thousands', 'per_capita_fuel_cons', 'fuel_cons_tons']
-            output_df = final_output[out_cols].copy()
+            output_df = (
+                final_output[out_cols]
+                .sort_values(['country', 'area', 'fuel', 'year'])
+                .reset_index(drop=True)
+            )
 
             # Shared filename-sanitization charset
             illegal = '\\/:*?"<>|'
@@ -1075,57 +1079,22 @@ with st.container(border=True):
                 sanitized = ''.join(c for c in (filename_input or default_filename).strip() if c not in illegal) or default_filename
                 stem = sanitized[:-5] if sanitized.lower().endswith('.xlsx') else sanitized
                 xlsx_name = f"{stem}.xlsx"
-                zip_name = f"{stem}.zip"
+                csv_name = f"{stem}.csv"
 
-                # Build the CSV-bundle ZIP (data.csv + description.txt + parameters.csv)
-                def _metadata_to_text(d):
-                    title = "Cooking Fuel Data Tool — Run Metadata"
-                    lines = [
-                        title,
-                        "=" * len(title),
-                        "",
-                        "Human-readable description of the run that produced data.csv.",
-                        "The same fields appear (in tabular form) on the \"Metadata & Sources\"",
-                        "sheet of the Excel export.",
-                        "",
-                    ]
-                    for field, value in zip(d['Field'], d['Value']):
-                        # Collapse newlines inside values so each field stays on one line.
-                        safe = str(value).replace('\n', ' ')
-                        lines.append(f"{field}: {safe}")
-                    return '\n'.join(lines) + '\n'
-
-                def _build_parameters_df():
-                    rows = [
-                        ('generation_date', pd.Timestamp.now().isoformat(timespec='seconds')),
-                        ('start_year', start_year),
-                        ('end_year', end_year),
-                        ('countries', ', '.join(selected_countries)),
-                        ('fuels', ', '.join(selected_fuels)),
-                        ('areas', ', '.join(selected_areas)),
-                        ('efchratio', f"{charcoal_multiplier:g}"),
-                        ('population_share_user_edited',
-                         'true' if st.session_state.get('user_edited_shares') else 'false'),
-                        ('per_capita_user_edited',
-                         'true' if st.session_state.get('user_edited_per_capita') else 'false'),
-                    ]
-                    return pd.DataFrame(rows, columns=['key', 'value'])
-
+                # Build the single CSV: 2-row parameter preamble (end_year, efchratio) + data.
                 data_csv_df = (
                     output_df
                     .assign(area=output_df['area'].str.lower())
                     .drop(columns=['region'])
                     .assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64'))
                 )
+                csv_payload = (
+                    f"end_year,efchratio\n"
+                    f"{end_year},{charcoal_multiplier:g}\n"
+                    + data_csv_df.to_csv(index=False)
+                )
 
-                zip_buf = BytesIO()
-                with zipfile.ZipFile(zip_buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-                    zf.writestr('data.csv', data_csv_df.to_csv(index=False))
-                    zf.writestr('description.txt', _metadata_to_text(metadata_dict))
-                    zf.writestr('parameters.csv', _build_parameters_df().to_csv(index=False))
-                zip_buf.seek(0)
-
-                col_xlsx, col_zip = st.columns([1, 1])
+                col_xlsx, col_csv = st.columns([1, 1])
                 with col_xlsx:
                     st.download_button(
                         label="📥 Download Excel Workbook",
@@ -1134,14 +1103,14 @@ with st.container(border=True):
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True,
                     )
-                with col_zip:
+                with col_csv:
                     st.download_button(
-                        label="📦 Download CSV Bundle (.zip)",
-                        data=zip_buf,
-                        file_name=zip_name,
-                        mime="application/zip",
+                        label="📄 Download CSV",
+                        data=csv_payload,
+                        file_name=csv_name,
+                        mime="text/csv",
                         use_container_width=True,
-                        help="ZIP containing data.csv (the data), description.txt (sources, citations, units), and parameters.csv (machine-readable run parameters).",
+                        help="Single CSV: first two rows are the parameter preamble (end_year, efchratio); the rest is the consumption data.",
                     )
 
             with sub_emissions:
@@ -1186,6 +1155,7 @@ with st.container(border=True):
                         + GWP_CH4 * em_summary_df['total_CH4'].fillna(0)
                         + GWP_N2O * em_summary_df['total_N2O'].fillna(0)
                     )
+                    em_summary_df = em_summary_df.sort_values(['country', 'area', 'year']).reset_index(drop=True)
 
                     st.subheader("Total emissions")
                     em_view = st.radio(

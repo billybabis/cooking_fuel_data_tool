@@ -397,11 +397,11 @@ with st.sidebar:
     )
     if not selected_areas:
         selected_areas = ['urban', 'rural', 'overall']
-    end_year = st.selectbox(
+    end_year = st.select_slider(
         "End year",
         options=[2020, 2030, 2035, 2040, 2050],
-        index=4,  # default 2050
-        key="filt_end_year",
+        value=2050,
+        key="filt_end_year_slider",
         help="Start year is fixed at 2000.",
     )
 
@@ -1449,7 +1449,7 @@ with st.container(border=True):
                     "A factor of 6 means producing 1 ton of charcoal consumes ~6 tons of dry wood. "
                     "In the Outputs tab, charcoal rows of `fuel_cons_tons` count this upstream "
                     "wood biomass, not charcoal mass at the stove."
-                    "Wood-to-charcoal conversion efficiencies vary widely. The recent [UNFCCC fNRB "
+                    " Wood-to-charcoal conversion efficiencies vary widely. The recent [UNFCCC fNRB "
                     "assessment](https://cdm.unfccc.int/DNA/fNRB/index.html), which was used to derive "
                     "the data in UNFCCC's [Tool33](https://cdm.unfccc.int/methodologies/PAmethodologies/tools/am-tool-33-v3.pdf) "
                     "used 6:1, which we use here as a default. Any alternate entry should be " \

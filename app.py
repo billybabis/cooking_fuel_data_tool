@@ -986,9 +986,8 @@ with st.container(border=True):
                 )
 
                 st.write(f"Total rows: {len(output_df):,}")
-                st.dataframe(output_df.drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')).head(500), hide_index=True, height=500, use_container_width=True)
+                st.dataframe(output_df.drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')), hide_index=True, height=500, use_container_width=True)
                 st.caption(
-                    f"Showing first 500 of {len(output_df):,} rows. "
                     "**Units note:** `num_fuel_users_thousands` is in **thousands of people** "
                     "(UN population convention — multiply by 1,000 for absolute people). "
                     "`fuel_cons_tons` is in **absolute tons** (the calculation applies a ×1,000 rescale internally). "
@@ -1167,9 +1166,8 @@ with st.container(border=True):
 
                     if em_view == "Per-fuel detail":
                         st.write(f"Total rows: {len(em_output_df):,}")
-                        st.dataframe(em_output_df.drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')).head(500), hide_index=True, height=500, use_container_width=True)
+                        st.dataframe(em_output_df.drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')), hide_index=True, height=500, use_container_width=True)
                         st.caption(
-                            f"Showing first 500 of {len(em_output_df):,} rows. "
                             "**Calculation:** `total_GHG = fuel_cons_tons × em_intens_GHG` per row. "
                             "**Units:** all `total_*` columns are in **absolute tons of GHG**. "
                             "Non-electric: intensities are mass ratios (kg GHG / kg fuel = tons/ton). "
@@ -1178,9 +1176,8 @@ with st.container(border=True):
                         )
                     else:
                         st.write(f"Total rows: {len(em_summary_df):,}")
-                        st.dataframe(em_summary_df.drop(columns=['region']).head(500), hide_index=True, height=500, use_container_width=True)
+                        st.dataframe(em_summary_df.drop(columns=['region']), hide_index=True, height=500, use_container_width=True)
                         st.caption(
-                            f"Showing first 500 of {len(em_summary_df):,} rows. "
                             "Aggregated by country / area / year, summing emissions across all fuels. "
                             f"**`total_CO2eq` = total_CO2 + {GWP_CH4} × total_CH4 + {GWP_N2O} × total_N2O** "
                             "(IPCC AR5 GWP-100, the UNFCCC Enhanced Transparency Framework default). "
@@ -1278,17 +1275,28 @@ with st.container(border=True):
 
                 st.subheader("Filtered fuel-share data")
                 st.caption("% of population using each fuel, by country, area, fuel, and year. **Edit cells directly or paste from Excel, then click Save.**")
+
+                # Only urban/rural rows exist in the share data; "overall" is derived
+                # downstream as urban + rural and cannot be edited directly.
+                editor_areas = [a for a in selected_areas if a in ('urban', 'rural')]
                 if filtered_data.empty:
                     st.info("No data matches your filters.")
+                elif not editor_areas:
+                    st.info(
+                        "**`overall` is derived as `urban + rural` and cannot be edited directly.** "
+                        "Add `urban` and/or `rural` to the Areas filter in the sidebar to edit the underlying shares."
+                    )
                 else:
-                    display_share = filtered_data[['iso3', 'country', 'region', 'area', 'fuel', 'year', 'percent_median']].copy()
+                    display_share = filtered_data[filtered_data['area'].isin(editor_areas)][
+                        ['iso3', 'country', 'region', 'area', 'fuel', 'year', 'percent_median']
+                    ].copy()
                     display_share = display_share.rename(columns={'percent_median': 'population_share'}).reset_index(drop=True)
                     st.write(f"Total rows: {len(display_share):,}")
 
                     if len(display_share) > 8000:
                         st.warning("Too many rows for inline editing — narrow your filters (fewer countries, shorter year range) to enable editing. Showing read-only view.")
-                        st.dataframe(display_share.drop(columns=['region']).head(500), height=400, hide_index=True)
-                        st.caption(f"Showing first 500 of {len(display_share):,} rows.")
+                        st.dataframe(display_share.drop(columns=['region']), height=400, hide_index=True)
+                        st.caption(f"Total rows: {len(display_share):,} (read-only view).")
                     else:
                         edited_shares = st.data_editor(
                             display_share,

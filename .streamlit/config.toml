@@ -1,2 +1,7 @@
 [theme]
 primaryColor = "#0fb975"
+
+[server]
+# Serves ./static at /app/static/. Required for the sidebar "User guide" button,
+# which opens static/USER_GUIDE.pdf in a new tab.
+enableStaticServing = true

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile app.py)",
+      "Bash(python -c ' *)",
+      "Read(//c/Users/WilliamBabis/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/local-packages/Python311/site-packages/streamlit/elements/widgets/**)",
+      "Bash(SDIR=\"C:/Users/WilliamBabis/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/local-packages/Python311/site-packages/streamlit/static\"; ls \"$SDIR/static/js\" 2>/dev/null | head -3; grep -rlo 'rel=\"noreferrer noopener\"' \"$SDIR/static/js\" 2>/dev/null | head -3)",
+      "Read(//c/Users/WilliamBabis/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/local-packages/Python311/site-packages/streamlit/static/static/js/**)",
+      "Bash(F=\"C:/Users/WilliamBabis/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/local-packages/Python311/site-packages/streamlit/static/static/js/index.BqMXJWvY.js\"; grep -o '.\\\\{140\\\\}rel:\"noreferrer noopener\".\\\\{60\\\\}' \"$F\" | head -4)",
+      "Bash(SDIR=\"C:/Users/WilliamBabis/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/local-packages/Python311/site-packages/streamlit/static/static/js\"; grep -o '.\\\\{0,340\\\\}stBaseLinkButton' \"$SDIR/index.94f3Fw7s.js\" | cut -c1-360)",
+      "Bash(SDIR=\"C:/Users/WilliamBabis/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/local-packages/Python311/site-packages/streamlit/static/static/js\"; grep -o 'stLinkButton\",\"data-testid\":\"stLinkButton\".\\\\{0,420\\\\}' \"$SDIR/index.94f3Fw7s.js\" | cut -c1-460)"
+    ]
+  }
+}

@@ -1,5 +1,17 @@
 """
-Generate USER_GUIDE.docx from the same content as USER_GUIDE.md.
+Generate USER_GUIDE.docx.
+
+*** WARNING — READ BEFORE RUNNING ***
+The USER_GUIDE.docx in this repo has real screenshots pasted into it by hand, in place
+of the "[ Screenshot placeholder ]" paragraphs this script emits. Running this script
+OVERWRITES that file and DESTROYS those screenshots — they are not stored anywhere else
+in the repo.
+
+Prefer editing USER_GUIDE.docx directly (python-docx can modify it in place without
+touching the images). Only run this script to rebuild the guide from scratch, and
+re-insert the screenshots afterwards.
+
+The text below is kept in sync with the shipped .docx so the two do not drift.
 
 Run: python generate_user_guide_docx.py
 Output: USER_GUIDE.docx (overwrites if it exists)
@@ -83,8 +95,7 @@ title.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
 doc.add_paragraph(
     "This guide walks through every screen and control in the Cooking Fuel Data Tool. "
-    "It is intended for analysts and modellers who will use the tool — for the underlying "
-    "methodology and data sources, see README.md."
+    "It is intended for analysts and modellers who will use the tool."
 )
 doc.add_paragraph(
     "The tool always opens to Outputs with the default selections applied. The two "
@@ -124,8 +135,8 @@ add_table(
          "Multi-select of all countries present in the fuel-share dataset",
          "Required — the body shows a prompt to pick at least one country before any data is rendered."],
         ["Fuel types",
-         "Multi-select of fuel categories: fuelwood, charcoal, imp_fuelwood, imp_charcoal, gas, kerosene, coal, electric, ethanol, pellets, biogas",
-         "Defaults to all available. Only fuels present in the fuel-share dataset can appear in output; the rest are silently dropped from the merge."],
+         "Multi-select of fuel categories: fuelwood, charcoal, coal, gas, kerosene, electric, biogas, ethanol, pellets, imp_fuelwood, imp_charcoal",
+         "Defaults to the six fuels covered by the UN/WHO household survey (fuelwood, charcoal, coal, gas, kerosene, electric). The other five — biogas, ethanol, pellets, imp_fuelwood, imp_charcoal — are not in that survey, so they carry a 0% population share everywhere and start deselected. Select one here and enter shares in the Fuel shares tab (§ 2.1) to bring it into the output."],
         ["Areas",
          "Multi-select: urban, rural, overall",
          "overall is derived as urban + rural (see § 1.3). Default is all three."],
@@ -157,7 +168,10 @@ add_table(
          "Per-capita consumption rate from the per-capita dataset",
          "Varies by fuel: MWh/person-year for electric; oven-dry tons/person-year for fuelwood/imp_fuelwood; tons/person-year for others"],
         ["fuel_cons_tons",
-         "Total consumption: num_fuel_users_thousands × per_capita_fuel_cons × 1,000",
+         "Total consumption: num_fuel_users_thousands × per_capita_fuel_cons × 1,000. "
+         "Charcoal rows are additionally multiplied by the kiln yield (§ 3.2), and wood/charcoal "
+         "rows by the non-residential uplift if it is enabled (§ 3.3) — so for those fuels the "
+         "plain three-term identity does not hold.",
          "Absolute tons (rounded to whole numbers in the display and exports)"],
     ],
 )
@@ -208,12 +222,93 @@ add_table(
         ["Download Excel Workbook", ".xlsx",
          "Two sheets: Metadata & Sources (run parameters, citations, units notes) and Fuel Consumption Data (the table)."],
         ["Download CSV", ".csv",
-         "Single file. The first two rows are a parameter preamble — end_year,efchratio then the values (e.g. 2050,6). Row 3 onward is the data table (header + rows). Designed for ingestion by downstream tools that expect a small named-parameter header above the data."],
+         "Single file. The first two rows are a parameter preamble — row 1 variable names, row 2 the matching values — carrying the run parameters and total demand per fuel (see \"The CSV parameter preamble\" below). Row 3 onward is the data table (header + rows). Designed for ingestion by downstream tools that expect a named-parameter header above the data."],
     ],
 )
 doc.add_paragraph(
     "The text input above the buttons sets the filename stem — both downloads use it (with "
     ".xlsx and .csv extensions respectively). Illegal filename characters are stripped automatically."
+)
+
+doc.add_heading("The CSV parameter preamble", level=3)
+doc.add_paragraph(
+    "The CSV export opens with a two-row parameter preamble: row 1 holds variable names, "
+    "row 2 holds the matching values, column for column. The consumption data table begins "
+    "on row 3. This lets a downstream tool read the run's settings and headline results "
+    "straight off the top of the file without re-aggregating the data rows."
+)
+add_code(
+    doc,
+    "end_year,efchratio,nonres_wood_pct,nonres_charcoal_pct,demand_yr_start,demand_yr_end,"
+    "demand_fw,demand_ch,demand_coal,demand_gas,demand_kero,demand_elec,demand_biogas,"
+    "demand_eth,demand_pel,demand_impfw,demand_impch",
+)
+add_code(doc, "2050,6,10,20,2026,2035,158876572,7045763,0,8530677,942834,148107,0,0,0,0,0")
+doc.add_paragraph("The parameter columns:")
+add_table(
+    doc,
+    ["Column", "Meaning", "Units"],
+    [
+        ["end_year", "Last projection year, from the sidebar slider.", "year"],
+        ["efchratio",
+         "Wood-to-charcoal kiln yield (§ 3.2), already applied to charcoal rows.",
+         "kg wood / kg charcoal"],
+        ["nonres_wood_pct",
+         "Non-residential uplift applied to fuelwood and imp_fuelwood. 0 when the option is "
+         "switched off — a 0% uplift is equivalent to not applying it, so there is no separate "
+         "on/off flag.",
+         "percent"],
+        ["nonres_charcoal_pct",
+         "Non-residential uplift applied to charcoal and imp_charcoal. 0 when switched off.",
+         "percent"],
+        ["demand_yr_start, demand_yr_end",
+         "The year window the demand_* totals were summed over. Normally 2026–2035; clipped if "
+         "the end-year filter stops earlier.",
+         "year"],
+        ["demand_<fuel>",
+         "Total consumption of that fuel over the demand window — one value per fuel. See the "
+         "mapping table below.",
+         "tons (MWh for demand_elec)"],
+    ],
+)
+
+doc.add_heading("Demand columns", level=4)
+doc.add_paragraph(
+    "Each demand_<fuel> value is the total consumption of that fuel summed over the demand "
+    "window, across the countries currently selected in the sidebar, using the overall area "
+    "rows (overall = urban + rural, so this is a national total and is not double-counted "
+    "against the urban and rural rows). Values reflect everything applied to the data rows "
+    "below: inline edits, the kiln yield, and the non-residential uplift."
+)
+doc.add_paragraph(
+    "All eleven fuels are always written, in the fixed order below, with 0 for any fuel that "
+    "is deselected in the sidebar or carries a zero share. The preamble layout is therefore "
+    "identical between exports, so a downstream parser can rely on a constant schema."
+)
+add_table(
+    doc,
+    ["Column", "Fuel", "Units"],
+    [
+        ["demand_fw", "fuelwood", "oven-dry tons"],
+        ["demand_ch", "charcoal", "tons of fuelwood-equivalent biomass (kiln yield applied)"],
+        ["demand_coal", "coal", "tons"],
+        ["demand_gas", "gas", "tons"],
+        ["demand_kero", "kerosene", "tons"],
+        ["demand_elec", "electric", "MWh"],
+        ["demand_biogas", "biogas", "tons"],
+        ["demand_eth", "ethanol", "tons"],
+        ["demand_pel", "pellets", "tons"],
+        ["demand_impfw", "imp_fuelwood", "oven-dry tons"],
+        ["demand_impch", "imp_charcoal", "tons of fuelwood-equivalent biomass"],
+    ],
+)
+add_para(
+    doc,
+    "Note: the 2026–2035 window is fixed in the tool, not derived from today's date. If the "
+    "end-year slider is set below 2035 the window is truncated (for example 2026–2030 at an "
+    "end year of 2030); the app shows a warning and the actual span is always recorded in "
+    "demand_yr_start / demand_yr_end, so read those rather than assuming a full decade.",
+    italic=True,
 )
 
 doc.add_heading("About the kiln yield in the CSV preamble", level=3)
@@ -248,6 +343,14 @@ add_screenshot_placeholder(
     doc,
     "Share editor with a few cells being edited",
     "docs/screenshots/06-share-editor.png",
+)
+doc.add_paragraph(
+    "Five fuels — biogas, ethanol, pellets, imp_fuelwood and imp_charcoal — are absent from "
+    "the UN/WHO household survey that supplies the default shares. They are injected with a "
+    "population share of 0 for every country, area and year so they can be edited here like "
+    "any other fuel: select one in the sidebar, enter shares in this table, and it flows "
+    "through consumption and emissions normally. Per-capita rates and emission factors for "
+    "them are already present in the reference data, so nothing else needs supplying."
 )
 doc.add_paragraph("To edit:")
 doc.add_paragraph("Click a cell in the population_share column and type a new value, OR paste a column from Excel.", style="List Number")
@@ -304,11 +407,21 @@ add_table(
     ],
 )
 
+add_para(
+    doc,
+    "Note on the 0-share fuels: interpolation anchors to the first and last baseline years, "
+    "so setting a custom value for a fuel whose baseline is 0 everywhere produces a ramp up "
+    "to your custom year and then a decay back to 0 by 2050. To hold such a fuel at a steady "
+    "share, edit the values directly in the Fuel shares table (§ 2.1) instead.",
+    italic=True,
+)
+
 doc.add_heading("Custom upload — minimum requirements", level=3)
 doc.add_paragraph("File must be .csv or .xlsx with the header row matching iso3, country, region, area, fuel, year, population_share (case-insensitive; the loader lowercases column names).", style="List Bullet")
 doc.add_paragraph("population_share values must be between 0 and 1.", style="List Bullet")
 doc.add_paragraph("A free-text data-source description is required at upload time (it shows up in the citations expander and the Metadata sheet of every subsequent Excel export).", style="List Bullet")
 doc.add_paragraph("Any Overall rows in the upload are dropped; overall is always derived as urban + rural downstream. Use lowercase urban/rural (case is normalised automatically).", style="List Bullet")
+doc.add_paragraph("Fuels your file omits are backfilled automatically: any of biogas, ethanol, pellets, imp_fuelwood or imp_charcoal that is missing is added at a 0 share, so the fuel list stays consistent with the default dataset.", style="List Bullet")
 
 # ---------- Section 3 ----------
 
@@ -379,7 +492,48 @@ doc.add_paragraph(
     "the UNFCCC fNRB assessment that informed the default."
 )
 
-doc.add_heading("3.3 Custom per-capita upload", level=2)
+doc.add_heading("3.3 Non-residential wood & charcoal consumption", level=2)
+doc.add_paragraph(
+    "Below the kiln yield is an optional adjustment for non-residential demand. The "
+    "fuel-share data covers household cooking only; this uplift accounts for restaurants, "
+    "schools, prisons, bakeries and other institutional or small-commercial users drawing on "
+    "the same wood and charcoal supply."
+)
+add_screenshot_placeholder(
+    doc,
+    "The non-residential checkbox with the two percentage inputs revealed",
+    "docs/screenshots/11b-non-residential.png",
+)
+add_table(
+    doc,
+    ["Detail", "Value"],
+    [
+        ["How to enable",
+         "Tick \"Include non-residential wood and charcoal consumption\". Unticked by default, "
+         "so outputs are household-only unless you opt in."],
+        ["Controls",
+         "Two percentage inputs appear when ticked: wood uplift (default 10%) and charcoal "
+         "uplift (default 20%)."],
+        ["Where it's applied",
+         "fuel_cons_tons is multiplied by (1 + uplift/100) — the wood figure for fuelwood and "
+         "imp_fuelwood, the charcoal figure for charcoal and imp_charcoal. Applied after the "
+         "kiln yield, so charcoal scales on its fuelwood-equivalent basis."],
+        ["Effect on other columns",
+         "num_fuel_users_thousands is unchanged — this is extra demand on the same fuel "
+         "supply, not extra people. Emissions follow the uplifted consumption automatically."],
+        ["Where it's recorded",
+         "A banner above the consumption table while active; the nonres_wood_pct and "
+         "nonres_charcoal_pct columns of the CSV preamble; and the \"Non-Residential "
+         "Consumption\" row of both Excel metadata sheets."],
+    ],
+)
+doc.add_paragraph(
+    "The defaults of 10% for wood and 20% for charcoal are starting points, not measured "
+    "values — the non-residential share varies widely by country and settlement type. Any "
+    "alternative entry should be supported by a documented field-based assessment."
+)
+
+doc.add_heading("3.4 Custom per-capita upload", level=2)
 doc.add_paragraph(
     "If the default per-capita data is missing or you want to replace it, the Upload "
     "custom rates button (visible at the top of the tab when no default is loaded, and "
@@ -521,9 +675,17 @@ add_table(
          "Metadata sheet, CSV preamble (in CSV bundles), filter applied to data rows"],
         ["start_year", "Fixed at 2000 — not user-editable", "Metadata sheet \"Year Range\""],
         ["end_year", "Sidebar slider",
-         "Metadata sheet \"Year Range\", end_year in CSV preamble"],
+         "Metadata sheet \"Year Range\", end_year in CSV preamble; also bounds the demand window"],
         ["efchratio (kiln yield)", "Per-capita rates tab → Wood-to-charcoal kiln yield",
          "Metadata sheet, efchratio in CSV preamble, applied to charcoal rows of fuel_cons_tons"],
+        ["Non-residential uplift (wood %, charcoal %)",
+         "Per-capita rates tab → Non-residential wood & charcoal consumption",
+         "Metadata sheet \"Non-Residential Consumption\"; nonres_wood_pct and nonres_charcoal_pct in CSV preamble (0 when off)"],
+        ["Decadal demand window (2026–2035)",
+         "Fixed in the tool; truncated by the end-year slider",
+         "Metadata sheet \"Decadal Demand Window\"; demand_yr_start / demand_yr_end in CSV preamble"],
+        ["Total demand per fuel", "Computed — not user-set",
+         "demand_fw, demand_ch, … (all 11 fuels) in CSV preamble"],
         ["Custom share dataset / projections", "Fuel shares tab → action buttons",
          "Metadata sheet records the source description and citation"],
         ["Per-capita inline edits", "Per-capita rates tab → data editor + Save",
@@ -545,6 +707,9 @@ add_table(
         ["total_CO2, total_CH4, total_N2O, total_CO2eq", "absolute tons of GHG"],
         ["efchratio", "kg wood / kg charcoal (dimensionless)"],
         ["population_share", "fraction in [0, 1]"],
+        ["demand_<fuel> (CSV preamble)",
+         "tons; MWh for demand_elec; fuelwood-equivalent tons for charcoal"],
+        ["nonres_wood_pct, nonres_charcoal_pct", "percent (0 when the uplift is off)"],
     ],
 )
 

@@ -2,10 +2,54 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from io import BytesIO
+from pathlib import Path
+
+# Exported from USER_GUIDE.docx by hand (Word > Save as PDF) and committed. Served via
+# enableStaticServing. Resolved from this file so it works whatever the cwd.
+# NOTE: re-export it whenever USER_GUIDE.docx changes — nothing enforces this.
+USER_GUIDE_PDF = Path(__file__).parent / "static" / "USER_GUIDE.pdf"
 
 # IPCC AR5 GWP-100 factors (UNFCCC Enhanced Transparency Framework default, post-2024)
 GWP_CH4 = 28
 GWP_N2O = 265
+
+# Fuels that have per-capita consumption rates and emissions intensities in the
+# reference data, but no population shares in the UN/WHO household dataset (which
+# only surveys biomass, charcoal, coal, electricity, gas, kerosene). They are
+# injected with a population share of 0 so the rest of the pipeline treats them as
+# ordinary fuels and users can enter their own shares via the fuel-share editor,
+# the year-projection modal, or a custom dataset upload. Deselected by default in
+# the sidebar so they do not clutter outputs for users who leave them at zero.
+SUPPLEMENTAL_FUELS = ['biogas', 'ethanol', 'imp_charcoal', 'imp_fuelwood', 'pellets']
+
+# Optional non-residential (institutional / small-commercial) uplift applied to wood
+# and charcoal consumption totals. Off by default — the fuel-share data is household
+# cooking only, so this is an explicit user opt-in.
+NONRES_DEFAULTS = {'enabled': False, 'wood_pct': 10.0, 'charcoal_pct': 20.0}
+NONRES_WOOD_FUELS = ['fuelwood', 'imp_fuelwood']
+NONRES_CHARCOAL_FUELS = ['charcoal', 'imp_charcoal']
+
+# Decadal demand window reported in the CSV parameter preamble: a fixed rolling ten
+# years from the present. Revisit as the tool ages — it does not track the clock.
+DEMAND_WINDOW = (2026, 2035)
+
+# Fuel -> preamble column suffix, e.g. fuelwood becomes `demand_fw`. Insertion order
+# fixes the preamble column order; every fuel is always emitted (0 when unselected)
+# so downstream parsers see a constant schema. Keys are the canonical post-rename
+# fuel names (see load_default_population_share_fuel_data).
+DEMAND_FUEL_CODES = {
+    'fuelwood': 'fw',
+    'charcoal': 'ch',
+    'coal': 'coal',
+    'gas': 'gas',
+    'kerosene': 'kero',
+    'electric': 'elec',
+    'biogas': 'biogas',
+    'ethanol': 'eth',
+    'pellets': 'pel',
+    'imp_fuelwood': 'impfw',
+    'imp_charcoal': 'impch',
+}
 
 # Page configuration
 st.set_page_config(page_title="Cooking Fuel Data Tool", layout="wide")
@@ -107,6 +151,32 @@ def load_default_population_data():
     pop_long_df["population"] = pd.to_numeric(pop_long_df["population"], errors="coerce")
     return pop_long_df
 
+def add_supplemental_fuel_rows(df):
+    """Add zero-share rows for any SUPPLEMENTAL_FUELS absent from a share dataset.
+
+    Builds one row per existing (iso3, country, region, area, year) combination with
+    percent_median = 0, so these fuels flow through headcount / consumption /
+    emissions as zeros until a user edits them. Fuels the incoming dataset already
+    supplies are left untouched.
+    """
+    if df is None or df.empty:
+        return df
+    present = set(df['fuel'].dropna().unique())
+    missing = [f for f in SUPPLEMENTAL_FUELS if f not in present]
+    if not missing:
+        return df
+
+    base_cols = ['iso3', 'country', 'region', 'area', 'year']
+    base = df[base_cols].drop_duplicates()
+    frames = [df]
+    for fuel in missing:
+        new_rows = base.copy()
+        new_rows['fuel'] = fuel
+        new_rows['percent_median'] = 0.0
+        frames.append(new_rows)
+    return pd.concat(frames, ignore_index=True)
+
+
 @st.cache_data
 def load_default_population_share_fuel_data():
     fname = 'data/percent_HH_fuel_UN_1990_2050.csv'
@@ -129,6 +199,9 @@ def load_default_population_share_fuel_data():
     # Overwrite region with country_codes region (canonical taxonomy used for per-capita lookup)
     iso3_to_region = get_iso3_to_region()
     df['region'] = df['iso3'].map(iso3_to_region)
+
+    # Fuels the UN/WHO survey does not cover enter here at a 0 share, editable by the user
+    df = add_supplemental_fuel_rows(df)
 
     return df
 
@@ -335,6 +408,50 @@ def apply_custom_year_adjustments(baseline_data, custom_year_data, custom_year, 
         return pd.DataFrame(columns=filtered_data.columns)
 
 
+def compute_demand_totals(output_df, window=DEMAND_WINDOW):
+    """Total fuel demand per fuel over a year window, for the CSV parameter preamble.
+
+    Returns (totals, actual_window, basis) where `totals` is keyed by the canonical fuel
+    name for every entry in DEMAND_FUEL_CODES (0 when the fuel is absent from the export),
+    `actual_window` is the requested window clipped to the years actually present, and
+    `basis` names the area rows used.
+
+    Values are summed over `overall` rows — the national total, since overall = urban +
+    rural. If the user has filtered `overall` out of the sidebar Areas selection, whichever
+    of urban/rural remain are summed instead, and `basis` reports that.
+
+    `output_df` is expected post-kiln-yield and post-non-residential-uplift, so the totals
+    match the data rows written below the preamble.
+    """
+    totals = {fuel: 0 for fuel in DEMAND_FUEL_CODES}
+    start, end = window
+    if output_df is None or output_df.empty:
+        return totals, (start, end), 'no data'
+
+    years = pd.to_numeric(output_df['year'], errors='coerce')
+    actual_start = max(start, int(years.min()))
+    actual_end = min(end, int(years.max()))
+    if actual_start > actual_end:
+        return totals, (actual_start, actual_end), 'no overlapping years'
+
+    area = output_df['area'].astype(str).str.lower()
+    if (area == 'overall').any():
+        area_mask, basis = area == 'overall', 'overall'
+    else:
+        present = [a for a in ('urban', 'rural') if (area == a).any()]
+        area_mask, basis = area.isin(present), ' + '.join(present) if present else 'none'
+
+    window_df = output_df[area_mask & years.between(actual_start, actual_end)]
+    summed = window_df.groupby(
+        window_df['fuel'].astype(str).str.lower()
+    )['fuel_cons_tons'].sum(min_count=1)
+
+    for fuel in totals:
+        value = summed.get(fuel)
+        totals[fuel] = 0 if value is None or pd.isna(value) else int(round(value))
+    return totals, (actual_start, actual_end), basis
+
+
 def update_headcount_data(selected_pop_share_df, total_pop_df):
     on_keys = ['area', 'year']
     merged_hc_df = selected_pop_share_df.merge(
@@ -369,6 +486,9 @@ available_countries = sorted(st.session_state.population_share_per_fuel_df['coun
 all_fuels_in_data = st.session_state.population_share_per_fuel_df['fuel'].unique() \
     if st.session_state.get('population_share_per_fuel_df') is not None else []
 available_fuels = sorted([f for f in all_fuels_in_data if f not in ['total clean', 'total polluting']])
+# Supplemental fuels default to a 0 share, so they start deselected — users opt in
+# after entering their own shares in the "See / edit input data" tab.
+default_fuels = [f for f in available_fuels if f not in SUPPLEMENTAL_FUELS] or available_fuels
 
 with st.sidebar:
     st.header("Select data parameters")
@@ -384,11 +504,17 @@ with st.sidebar:
     selected_fuels = st.multiselect(
         "Fuel types",
         options=available_fuels,
-        default=available_fuels,
+        default=default_fuels,
         key="filt_fuels",
+        help=(
+            "Fuels not covered by the UN/WHO household survey — "
+            f"{', '.join(SUPPLEMENTAL_FUELS)} — start at a 0% population share and are "
+            "deselected by default. Select one to see it, then set its shares in the "
+            "**See / edit input data → Fuel shares** tab."
+        ),
     )
     if not selected_fuels:
-        selected_fuels = available_fuels
+        selected_fuels = default_fuels
     selected_areas = st.multiselect(
         "Areas",
         options=['urban', 'rural', 'overall'],
@@ -404,6 +530,23 @@ with st.sidebar:
         key="filt_end_year_slider",
         help="Start year is fixed at 2000.",
     )
+
+    st.markdown("---")
+    # Served from ./static by enableStaticServing (.streamlit/config.toml).
+    # st.link_button renders target="_blank", so this opens in a new tab.
+    if USER_GUIDE_PDF.exists():
+        st.link_button(
+            "📖 User guide (PDF)",
+            "app/static/USER_GUIDE.pdf",
+            use_container_width=True,
+            help="Opens the full user guide in a new tab.",
+        )
+    else:
+        # Guard so a missing file shows a note instead of a dead link.
+        st.caption(
+            "📖 User guide PDF missing — export `USER_GUIDE.docx` from Word as "
+            "`static/USER_GUIDE.pdf`."
+        )
 
 start_year = 2000
 
@@ -449,6 +592,7 @@ def show_custom_dataset_modal():
     st.markdown("#### Required Columns:")
     st.code("iso3, country, region, area, fuel, year, population_share")
     st.caption("**Note:** `population_share` values should be between 0 and 1 (e.g., 0.75 = 75%). The `region` column will be re-derived from country_codes after upload.")
+    st.caption(f"Any of {', '.join(SUPPLEMENTAL_FUELS)} your file omits will be added automatically at a 0 share.")
 
     uploaded_file = st.file_uploader(
         "Choose CSV or Excel file",
@@ -495,6 +639,8 @@ def show_custom_dataset_modal():
                         # Re-derive region from country_codes for canonical taxonomy
                         iso3_to_region = get_iso3_to_region()
                         new_df['region'] = new_df['iso3'].map(iso3_to_region)
+                        # Backfill any supplemental fuels the upload omits at a 0 share
+                        new_df = add_supplemental_fuel_rows(new_df)
                         st.session_state.population_share_per_fuel_df = new_df
 
                         st.session_state.data_source_population_share = source_description.strip()
@@ -985,6 +1131,34 @@ with st.container(border=True):
                     * 1000  # num_fuel_users_thousands is in thousands; ×1000 -> absolute tons
                 )
 
+                # Optional non-residential uplift on wood and charcoal totals (opt-in; widget
+                # lives in the Per-capita rates input tab). Applied after the kiln-yield step so
+                # charcoal scales on its fuelwood-equivalent basis. num_fuel_users_thousands is
+                # deliberately left alone — this is extra demand, not extra people.
+                nonres = st.session_state.get("nonres_cfg", NONRES_DEFAULTS)
+                nonres_enabled = bool(nonres.get("enabled", False))
+                try:
+                    nonres_wood_pct = max(0.0, float(nonres.get("wood_pct", NONRES_DEFAULTS["wood_pct"])))
+                except (ValueError, TypeError):
+                    nonres_wood_pct = NONRES_DEFAULTS["wood_pct"]
+                try:
+                    nonres_charcoal_pct = max(0.0, float(nonres.get("charcoal_pct", NONRES_DEFAULTS["charcoal_pct"])))
+                except (ValueError, TypeError):
+                    nonres_charcoal_pct = NONRES_DEFAULTS["charcoal_pct"]
+
+                if nonres_enabled:
+                    fuel_lower = output_df['fuel'].astype(str).str.lower()
+                    wood_mask = fuel_lower.isin(NONRES_WOOD_FUELS)
+                    char_mask = fuel_lower.isin(NONRES_CHARCOAL_FUELS)
+                    output_df.loc[wood_mask, 'fuel_cons_tons'] *= (1 + nonres_wood_pct / 100.0)
+                    output_df.loc[char_mask, 'fuel_cons_tons'] *= (1 + nonres_charcoal_pct / 100.0)
+                    st.info(
+                        f"🔥 **Non-residential consumption included** — wood "
+                        f"(`{'`, `'.join(NONRES_WOOD_FUELS)}`) uplifted by **{nonres_wood_pct:g}%** and charcoal "
+                        f"(`{'`, `'.join(NONRES_CHARCOAL_FUELS)}`) by **{nonres_charcoal_pct:g}%**. "
+                        "Change or disable this in **See / edit input data → Per-capita rates**."
+                    )
+
                 st.write(f"Total rows: {len(output_df):,}")
                 st.dataframe(output_df.drop(columns=['region']).assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64')), hide_index=True, height=500, use_container_width=True)
                 st.caption(
@@ -996,6 +1170,12 @@ with st.container(border=True):
                     "`fuel_cons_tons` inherits these per-fuel units. "
                     f"**Charcoal rows:** `fuel_cons_tons` is reported in **tons of fuelwood-equivalent biomass** "
                     f"(charcoal mass × {charcoal_multiplier:g} kiln-yield factor — set in the *Per-capita rates* input tab), not charcoal at the stove."
+                    + (
+                        f" **Non-residential uplift applied:** wood ×{1 + nonres_wood_pct / 100.0:g}, "
+                        f"charcoal ×{1 + nonres_charcoal_pct / 100.0:g}, so `fuel_cons_tons` on those rows exceeds "
+                        "`num_fuel_users_thousands × per_capita_fuel_cons × 1,000`."
+                        if nonres_enabled else ""
+                    )
                 )
 
                 missing = output_df[output_df['per_capita_fuel_cons'].isna()]
@@ -1011,6 +1191,11 @@ with st.container(border=True):
                     f"📊 **Fuel-share data**: {st.session_state.get('data_source_population_share', 'Updated UN WHO data from O. Stoner (methods: Stoner et al. 2021)')}  \n"
                     f"📊 **Per-capita data**: {st.session_state.get('data_source_per_capita', 'Default Per Capita Data (Placeholder)')}"
                 )
+
+                # Decadal demand totals — reported in the CSV preamble and the Excel metadata.
+                # Computed here (before both exports) so the two agree.
+                demand_totals, demand_window, demand_basis = compute_demand_totals(output_df)
+                demand_window_clipped = demand_window != DEMAND_WINDOW
 
                 # Excel download (2 sheets: Metadata + Data)
                 buffer = BytesIO()
@@ -1039,6 +1224,8 @@ with st.container(border=True):
                             'Per Capita Citation',
                             'Per Capita — In-App Edits',
                             'Charcoal → Fuelwood Equivalence Factor',
+                            'Non-Residential Consumption',
+                            'Decadal Demand Window',
                             'Units — num_fuel_users_thousands',
                             'Units — fuel_cons_tons',
                             'Units (per_capita_fuel_cons / fuel_cons_tons)',
@@ -1058,6 +1245,24 @@ with st.container(border=True):
                             st.session_state.get('per_capita_citation') or st.session_state.get('per_capita_base_citation', 'N/A'),
                             'Yes (rows edited inline during this session)' if st.session_state.get('user_edited_per_capita') else 'No',
                             f"{charcoal_multiplier:g} (applied to charcoal fuel_cons_tons only)",
+                            (
+                                f"Included — wood ({', '.join(NONRES_WOOD_FUELS)}) uplifted by {nonres_wood_pct:g}%, "
+                                f"charcoal ({', '.join(NONRES_CHARCOAL_FUELS)}) by {nonres_charcoal_pct:g}%. "
+                                "Applied to fuel_cons_tons as x(1 + uplift/100) after the kiln-yield factor; "
+                                "num_fuel_users_thousands is unchanged. Represents institutional / small-commercial "
+                                "demand (restaurants, schools, bakeries) on the same fuel supply."
+                                if nonres_enabled else
+                                "Not included — household cooking demand only."
+                            ),
+                            (
+                                f"{demand_window[0]}-{demand_window[1]}"
+                                + (f" (clipped from the intended {DEMAND_WINDOW[0]}-{DEMAND_WINDOW[1]} "
+                                   f"because the end year is {end_year})" if demand_window_clipped else "")
+                                + f". Per-fuel totals over this window (area basis: {demand_basis}, "
+                                "summed across the selected countries) are written to the demand_* columns "
+                                "of the CSV export's parameter preamble. Not repeated in this workbook — "
+                                "they are derivable from the data sheet."
+                            ),
                             'In THOUSANDS of people (UN population convention — not rescaled). Multiply by 1,000 for absolute people.',
                             'In ABSOLUTE tons. The calculation applies a ×1,000 rescale internally so that fuel_cons_tons (and downstream emissions) report absolute values, even though num_fuel_users_thousands stays in thousands.',
                             'MWh/person-year for electric; oven-dry tons/person-year for fuelwood and imp_fuelwood; tons/person-year for all other fuels.',
@@ -1080,16 +1285,32 @@ with st.container(border=True):
                 xlsx_name = f"{stem}.xlsx"
                 csv_name = f"{stem}.csv"
 
-                # Build the single CSV: 2-row parameter preamble (end_year, efchratio) + data.
+                # Build the single CSV: 2-row parameter preamble (row 1 varnames, row 2 values)
+                # followed by the data rows. Both rows are generated from one ordered list of
+                # (name, value) pairs so they cannot drift out of alignment.
                 data_csv_df = (
                     output_df
                     .assign(area=output_df['area'].str.lower())
                     .drop(columns=['region'])
                     .assign(fuel_cons_tons=lambda d: d['fuel_cons_tons'].round().astype('Int64'))
                 )
+
+                preamble_pairs = [
+                    ('end_year', f"{end_year}"),
+                    ('efchratio', f"{charcoal_multiplier:g}"),
+                    # 0 when the uplift is switched off — a 0% uplift is equivalent to "not applied"
+                    ('nonres_wood_pct', f"{nonres_wood_pct:g}" if nonres_enabled else "0"),
+                    ('nonres_charcoal_pct', f"{nonres_charcoal_pct:g}" if nonres_enabled else "0"),
+                    ('demand_yr_start', f"{demand_window[0]}"),
+                    ('demand_yr_end', f"{demand_window[1]}"),
+                ] + [
+                    (f"demand_{code}", f"{demand_totals[fuel]}")
+                    for fuel, code in DEMAND_FUEL_CODES.items()
+                ]
+
                 csv_payload = (
-                    f"end_year,efchratio\n"
-                    f"{end_year},{charcoal_multiplier:g}\n"
+                    ','.join(name for name, _ in preamble_pairs) + "\n"
+                    + ','.join(value for _, value in preamble_pairs) + "\n"
                     + data_csv_df.to_csv(index=False)
                 )
 
@@ -1109,8 +1330,33 @@ with st.container(border=True):
                         file_name=csv_name,
                         mime="text/csv",
                         use_container_width=True,
-                        help="Single CSV: first two rows are the parameter preamble (end_year, efchratio); the rest is the consumption data.",
+                        help=(
+                            "Single CSV. The first two rows are a parameter preamble — row 1 varnames, "
+                            "row 2 values — carrying end_year, efchratio, the non-residential uplift "
+                            "percentages, the demand window, and total demand per fuel. The consumption "
+                            "data follows below."
+                        ),
                     )
+
+                if demand_window_clipped:
+                    st.warning(
+                        f"⚠️ **Partial demand window.** The CSV preamble reports "
+                        f"`demand_*` over **{demand_window[0]}–{demand_window[1]}**, not the full "
+                        f"{DEMAND_WINDOW[0]}–{DEMAND_WINDOW[1]} decade — the end-year filter stops at "
+                        f"{end_year}. Set the end year to {DEMAND_WINDOW[1]} or later for a full decade. "
+                        "The window actually used is recorded in the `demand_yr_start` / `demand_yr_end` "
+                        "preamble columns."
+                    )
+
+                st.caption(
+                    f"**CSV preamble:** rows 1–2 hold `varname,value` pairs. `demand_*` columns are total "
+                    f"consumption per fuel summed over **{demand_window[0]}–{demand_window[1]}** across the "
+                    f"selected countries, using **{demand_basis}** area rows. All 11 fuels are always emitted "
+                    "in a fixed order (`0` for deselected or zero-share fuels) so the layout stays constant "
+                    "between exports. Values include the kiln-yield factor and any non-residential uplift, "
+                    "matching the data rows below. **Units:** tons, except `demand_elec` (MWh); `demand_ch` "
+                    "and `demand_impch` are fuelwood-equivalent."
+                )
 
             with sub_emissions:
                 em_no_elec = load_em_intens_no_elec()
@@ -1213,6 +1459,7 @@ with st.container(border=True):
                                 'Non-Electric Emissions Source',
                                 'Electricity Emissions Source',
                                 'Charcoal → Fuelwood Equivalence Factor',
+                                'Non-Residential Consumption',
                                 'Units — fuel_cons_tons & emissions',
                                 'Calculation',
                                 'CO2-eq Calculation',
@@ -1229,6 +1476,13 @@ with st.container(border=True):
                                 'Per-fuel emissions intensities for all countries (Electricity row ignored)',
                                 'Per-country Combined Margin grid emission factor, gCO2/kWh; CO2 only — CH4/N2O set to 0. Source: UNFCCC — IFI TWG List of Methodologies (https://unfccc.int/climate-action/sectoral-engagement/ifis-harmonization-of-standards-for-ghg-accounting/ifi-twg-list-of-methodologies)',
                                 f"{charcoal_multiplier:g} (applied to charcoal fuel_cons_tons only)",
+                                (
+                                    f"Included — wood ({', '.join(NONRES_WOOD_FUELS)}) uplifted by {nonres_wood_pct:g}%, "
+                                    f"charcoal ({', '.join(NONRES_CHARCOAL_FUELS)}) by {nonres_charcoal_pct:g}%. "
+                                    "Emissions on those rows scale with the uplifted consumption."
+                                    if nonres_enabled else
+                                    "Not included — household cooking demand only."
+                                ),
                                 'fuel_cons_tons and all total_* emissions columns are in ABSOLUTE tons. (The consumption calculation applies a ×1,000 rescale internally; note that num_fuel_users_thousands on the consumption sheet stays in thousands of people.)',
                                 'total_GHG = fuel_cons_tons × em_intens_GHG',
                                 f'total_CO2eq = total_CO2 + {GWP_CH4} × total_CH4 + {GWP_N2O} × total_N2O',
@@ -1275,6 +1529,11 @@ with st.container(border=True):
 
                 st.subheader("Filtered fuel-share data")
                 st.caption("% of population using each fuel, by country, area, fuel, and year. **Edit cells directly or paste from Excel, then click Save.**")
+                st.caption(
+                    f"**Note:** {', '.join(SUPPLEMENTAL_FUELS)} are not covered by the UN/WHO survey. "
+                    "They carry a 0 share everywhere and are deselected in the sidebar by default — "
+                    "select them there to edit their shares here."
+                )
 
                 # Only urban/rural rows exist in the share data; "overall" is derived
                 # downstream as urban + rural and cannot be edited directly.
@@ -1461,8 +1720,72 @@ with st.container(border=True):
                     "assessment](https://cdm.unfccc.int/DNA/fNRB/index.html), which was used to derive "
                     "the data in UNFCCC's [Tool33](https://cdm.unfccc.int/methodologies/PAmethodologies/tools/am-tool-33-v3.pdf) "
                     "used 6:1, which we use here as a default. Any alternate entry should be " \
-                    "supported by a well-documented field-based assessment." 
+                    "supported by a well-documented field-based assessment."
                 )
+
+                st.markdown("---")
+
+                # Non-residential wood & charcoal uplift (applied to totals in the Outputs tab).
+                # Widget values are mirrored into the plain `nonres_cfg` key because Streamlit
+                # discards widget state for widgets that aren't rendered, and this whole Inputs
+                # branch is skipped while the user is on the Outputs folder tab.
+                st.markdown("##### Non-residential wood & charcoal consumption")
+                nonres_cfg = st.session_state.get("nonres_cfg", NONRES_DEFAULTS)
+                st.checkbox(
+                    "Include non-residential wood and charcoal consumption",
+                    value=bool(nonres_cfg.get("enabled", False)),
+                    key="nonres_enabled",
+                    help=(
+                        "The fuel-share data covers household cooking only. Enable this to add a "
+                        "proportional uplift representing non-residential demand — restaurants, "
+                        "schools, prisons, bakeries, and other institutional or small-commercial "
+                        "users drawing on the same wood and charcoal supply."
+                    ),
+                )
+                if st.session_state.get("nonres_enabled", False):
+                    wcol, ccol, _ = st.columns([2, 2, 6], gap="small")
+                    with wcol:
+                        st.number_input(
+                            "Wood uplift (%)",
+                            min_value=0.0, max_value=500.0, step=1.0,
+                            value=float(nonres_cfg.get("wood_pct", NONRES_DEFAULTS["wood_pct"])),
+                            format="%.1f",
+                            key="nonres_wood_pct",
+                            help="Percent added to fuelwood and imp_fuelwood consumption.",
+                        )
+                    with ccol:
+                        st.number_input(
+                            "Charcoal uplift (%)",
+                            min_value=0.0, max_value=500.0, step=1.0,
+                            value=float(nonres_cfg.get("charcoal_pct", NONRES_DEFAULTS["charcoal_pct"])),
+                            format="%.1f",
+                            key="nonres_charcoal_pct",
+                            help="Percent added to charcoal and imp_charcoal consumption.",
+                        )
+                    st.caption(
+                        "Applied in the Outputs tab as `fuel_cons_tons × (1 + uplift/100)` to wood "
+                        "(`fuelwood`, `imp_fuelwood`) and charcoal (`charcoal`, `imp_charcoal`) rows. "
+                        "For charcoal this scales the fuelwood-equivalent total, so the kiln yield above "
+                        "still applies. Emissions follow the adjusted consumption. Note that "
+                        "`num_fuel_users_thousands` is unchanged — the uplift represents extra demand on "
+                        "the same fuel supply, not extra people."
+                    )
+                else:
+                    st.caption(
+                        "Off by default: outputs count household cooking demand only. Defaults when "
+                        "enabled are **10% for wood** and **20% for charcoal**. Any alternate entry "
+                        "should be supported by a documented field-based assessment."
+                    )
+
+                # Persist the current selection so the Outputs tab can read it even on runs
+                # where these widgets are not rendered.
+                st.session_state.nonres_cfg = {
+                    'enabled': bool(st.session_state.get("nonres_enabled", False)),
+                    'wood_pct': float(st.session_state.get("nonres_wood_pct",
+                                                           nonres_cfg.get("wood_pct", NONRES_DEFAULTS["wood_pct"]))),
+                    'charcoal_pct': float(st.session_state.get("nonres_charcoal_pct",
+                                                               nonres_cfg.get("charcoal_pct", NONRES_DEFAULTS["charcoal_pct"]))),
+                }
 
                 st.markdown("---")
 
